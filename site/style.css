@@ -172,7 +172,7 @@ h1 { font-size: 56px; line-height: 1.06; font-weight: 500; letter-spacing: -0.03
 
 /* worklog: a rail. a rail reads as a history. no card. */
 .rail { padding-left: var(--s-3); background: linear-gradient(to bottom, transparent, var(--rule) 20px, var(--rule) calc(100% - 20px), transparent) no-repeat 6px 0 / 1px 100%; }
-.entry { display: grid; grid-template-columns: 11px 1fr; gap: var(--s-6); padding-bottom: var(--s-8); }
+.entry { display: grid; grid-template-columns: 11px minmax(0, 1fr); gap: var(--s-6); padding-bottom: var(--s-8); }
 .dot { width: 5px; height: 5px; border-radius: 50%; margin: 6px 0 0 3px; background: var(--text-ghost); }
 .dot.moved { background: var(--accent-mid); }
 .dot.blocked { width: 7px; height: 7px; border-radius: 0; background: var(--blocked); transform: rotate(45deg); margin-left: 2px; }
@@ -195,7 +195,7 @@ pre.config { padding: var(--s-8); border-radius: var(--r-lg); background: var(--
 pre.config .k { color: var(--accent-lit); }
 pre.config .s { color: #e4e7f5; }
 .caps { list-style: none; }
-.caps li { display: grid; grid-template-columns: 11px 1fr; gap: var(--s-4); font-size: 14px; color: var(--text-muted); margin-bottom: var(--s-4); }
+.caps li { display: grid; grid-template-columns: 11px minmax(0, 1fr); gap: var(--s-4); font-size: 14px; color: var(--text-muted); margin-bottom: var(--s-4); }
 .caps i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent-mid); margin: 8px 0 0 3px; }
 .cannot { margin-top: var(--s-8); padding: var(--s-6); border-radius: var(--r-md); background: var(--surface); }
 .cannot h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--blocked); margin-bottom: var(--s-4); }
@@ -203,7 +203,7 @@ pre.config .s { color: #e4e7f5; }
 
 /* --- quickstart ------------------------------------------------------------ */
 .steps { display: flex; flex-direction: column; gap: 48px; max-width: 820px; margin-top: 44px; }
-.step { display: grid; grid-template-columns: 34px 1fr; gap: var(--s-8); align-items: start; }
+.step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: var(--s-8); align-items: start; }
 .step .n { font-family: var(--mono); font-size: 13px; color: var(--accent); }
 .step h3 { font-size: 19px; font-weight: 500; margin-bottom: var(--s-3); }
 .step p { font-size: 14.5px; color: var(--text-dim); max-width: 60ch; text-wrap: pretty; }
