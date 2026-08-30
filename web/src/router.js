@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import BoardView from './views/BoardView.vue'
+import ProjectsView from './views/ProjectsView.vue'
+import TasksView from './views/TasksView.vue'
 import ProjectView from './views/ProjectView.vue'
 import TaskView from './views/TaskView.vue'
 import AgentsView from './views/AgentsView.vue'
@@ -8,7 +9,8 @@ import AgentsView from './views/AgentsView.vue'
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'board', component: BoardView },
+    { path: '/', name: 'projects', component: ProjectsView },
+    { path: '/tasks', name: 'tasks', component: TasksView },
     { path: '/p/:slug', name: 'project', component: ProjectView, props: true },
     {
       path: '/t/:taskRef',

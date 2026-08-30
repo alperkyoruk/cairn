@@ -24,7 +24,8 @@ async function signOut() {
         <span class="wordmark">cairn</span>
       </RouterLink>
 
-      <RouterLink to="/" class="link">Board</RouterLink>
+      <RouterLink to="/" class="link">Projects</RouterLink>
+      <RouterLink to="/tasks" class="link">Tasks</RouterLink>
       <RouterLink to="/agents" class="link">Agents</RouterLink>
 
       <!-- The design has the username as a label with nothing behind it, which

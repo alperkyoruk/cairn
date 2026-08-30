@@ -88,7 +88,7 @@ watch(() => props.slug, load)
 
   <div v-else class="project">
     <nav class="crumbs mono">
-      <RouterLink to="/">board</RouterLink>
+      <RouterLink to="/">projects</RouterLink>
       <span class="faint">/</span>
       <span class="dim">{{ project.slug }}</span>
     </nav>
