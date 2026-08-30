@@ -1,6 +1,10 @@
 # Cairn
 
+[![CI](https://github.com/alperkyoruk/cairn/actions/workflows/ci.yml/badge.svg)](https://github.com/alperkyoruk/cairn/actions/workflows/ci.yml)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 An issue tracker that treats the coding agent as a first-class actor.
+[**alperkyoruk.github.io/cairn**](https://alperkyoruk.github.io/cairn/)
 
 A cairn is a stack of stones left on a trail so whoever comes next knows the way.
 Every task here carries a note for whoever picks it up, human or agent.
