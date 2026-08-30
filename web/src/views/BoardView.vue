@@ -137,19 +137,6 @@ onMounted(load)
 
     <TaskTable v-if="rows.length" :rows="rows" :agents="agents" />
 
-    <div v-if="rows.length && projects.length" class="projects rule-top">
-      <span class="faint">projects</span>
-      <RouterLink
-        v-for="p in projectCounts"
-        :key="p.id"
-        :to="`/p/${p.slug}`"
-        class="project mono"
-        :class="{ vacant: p.count === 0 }"
-      >
-        {{ p.slug }}<span class="count">{{ p.count }}</span>
-      </RouterLink>
-    </div>
-
     <!-- The only empty state that explains anything, because it is the only one
          a person sees before they understand the product. -->
     <div v-else-if="!projects.length" class="empty">
@@ -167,8 +154,27 @@ onMounted(load)
     <div v-else class="empty">
       <p class="lead">No tasks yet.</p>
       <p class="prose">
-        Open a project to file the first one, or let an agent file it over MCP.
+        Open a project below to file the first one, or let an agent file it
+        over MCP.
       </p>
+    </div>
+
+    <!-- The board lists tasks, so a project with none has no row here. This
+         strip is the only route to one, which means it has to survive the empty
+         board -- that is precisely when it is the only thing to click. It sits
+         after the chain above rather than inside it, because a v-if between a
+         v-if and its v-else-if orphans the rest. -->
+    <div v-if="projects.length" class="projects" :class="{ 'rule-top': rows.length }">
+      <span class="faint">projects</span>
+      <RouterLink
+        v-for="p in projectCounts"
+        :key="p.id"
+        :to="`/p/${p.slug}`"
+        class="project mono"
+        :class="{ vacant: p.count === 0 }"
+      >
+        {{ p.slug }}<span class="count">{{ p.count }}</span>
+      </RouterLink>
     </div>
   </div>
 </template>
