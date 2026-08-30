@@ -1,7 +1,14 @@
 services:
   cairn:
+    # The published image is the artifact CI built and tested, so a deployment
+    # runs exactly what was released rather than whatever the host's toolchain
+    # produces. `docker compose pull && docker compose up -d` deploys in seconds
+    # with no compiler on the server.
+    #
+    # `docker compose up -d --build` still builds this checkout instead, which is
+    # what you want while developing.
+    image: ghcr.io/alperkyoruk/cairn:latest
     build: .
-    image: cairn:latest
     container_name: cairn
     restart: unless-stopped
     # Published to loopback only. Caddy terminates TLS and proxies to it; the

@@ -127,7 +127,14 @@ with a CVE feed — because the binary has no dynamic links. It runs as an
 unprivileged uid and keeps the database in `/data`.
 
 There is also a `compose.yaml` in the repository, which publishes to
-`127.0.0.1:8083` and expects a reverse proxy in front.
+`127.0.0.1:8083` and expects a reverse proxy in front. It uses the published
+image, so deploying is:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Add `--build` to `up` if you would rather build the checkout you have.
 
 ### From source
 
