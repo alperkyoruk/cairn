@@ -126,18 +126,34 @@ h1 { font-size: 56px; line-height: 1.06; font-weight: 500; letter-spacing: -0.03
 .seg label:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .strip { display: flex; border-radius: var(--r-md); background: var(--surface); box-shadow: inset 0 0 0 1px var(--hairline); }
-/* min-width: 0 for the same reason: a flex item defaults to min-width auto,
-   which lets a long command push the strip past the page. */
-.strip .cmd { flex: 1; min-width: 0; overflow-x: auto; padding: var(--s-4) var(--s-6); white-space: nowrap; font-family: var(--mono); font-size: 12.5px; color: var(--text-muted); }
+/* The command wraps rather than scrolling out of sight. The handoff asked for
+   nowrap plus a horizontal scroll "so it stays copy-pasteable", but wrapping is
+   visual only -- the copied string is one line either way -- and a command
+   clipped at the right edge is a command the reader cannot check before running
+   it. min-width: 0 because a flex item defaults to min-width auto, which would
+   otherwise let a long command push the strip past the page. */
+.strip .cmd {
+  flex: 1;
+  min-width: 0;
+  padding: var(--s-4) var(--s-6);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
 .strip .cmd .p { color: var(--accent-lit); user-select: none; margin-right: var(--s-3); }
-.strip .copy { flex: none; border-radius: 0 var(--r-md) var(--r-md) 0; border: 0; border-left: 1px solid var(--hairline); color: var(--accent); }
+.strip { align-items: stretch; }
+.strip .copy { flex: none; align-self: stretch; border-radius: 0 var(--r-md) var(--r-md) 0; border: 0; border-left: 1px solid var(--hairline); color: var(--accent); }
 .strip .copy:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
 /* Only the checked tab's command is shown. No JS required for the swap. */
 .cmd[data-for] { display: none; }
-.install:has(#t-binary:checked) .cmd[data-for="binary"],
-.install:has(#t-docker:checked) .cmd[data-for="docker"],
-.install:has(#t-source:checked) .cmd[data-for="source"] { display: block; }
+.install:has(#t-macos:checked)   .cmd[data-for="macos"],
+.install:has(#t-linux:checked)   .cmd[data-for="linux"],
+.install:has(#t-windows:checked) .cmd[data-for="windows"],
+.install:has(#t-docker:checked)  .cmd[data-for="docker"] { display: block; }
 
 .after { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-4); margin-top: var(--s-4); font-size: 13px; color: var(--text-dim); }
 .after a { font-size: 12.5px; }

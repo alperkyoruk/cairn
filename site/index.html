@@ -45,24 +45,19 @@
   </p>
 
   <div class="install" id="install">
-    <fieldset class="seg">
-      <legend class="visually-hidden">Install method</legend>
-      <label><input type="radio" name="install" id="t-binary" checked>Binary</label>
-      <label><input type="radio" name="install" id="t-docker">Docker</label>
-      <label><input type="radio" name="install" id="t-source">From source</label>
+    <fieldset class="seg" id="os">
+      <legend class="visually-hidden">Choose your platform</legend>
+      <label><input type="radio" name="install" id="t-macos" value="macos" checked>macOS</label>
+      <label><input type="radio" name="install" id="t-linux" value="linux">Linux</label>
+      <label><input type="radio" name="install" id="t-windows" value="windows">Windows</label>
+      <label><input type="radio" name="install" id="t-docker" value="docker">Docker</label>
     </fieldset>
 
     <div class="strip">
-      <div class="cmd" data-for="binary" data-cmd="binary"
-           data-template="tar -xzf cairn___VERSION___{os}_{arch}.tar.gz &amp;&amp; ./cairn"
-           data-copy="tar -xzf cairn___VERSION___darwin_arm64.tar.gz &amp;&amp; ./cairn"><span class="p" aria-hidden="true">$</span><span class="text">tar -xzf cairn___VERSION___darwin_arm64.tar.gz &amp;&amp; ./cairn</span></div>
-
-      <div class="cmd" data-for="docker"
-           data-copy="docker run -d -p 127.0.0.1:7777:7777 -v cairn-data:/data ghcr.io/alperkyoruk/cairn:latest"><span class="p" aria-hidden="true">$</span><span class="text">docker run -d -p 127.0.0.1:7777:7777 -v cairn-data:/data ghcr.io/alperkyoruk/cairn:latest</span></div>
-
-      <div class="cmd" data-for="source"
-           data-copy="make build &amp;&amp; ./cairn"><span class="p" aria-hidden="true">$</span><span class="text">make build &amp;&amp; ./cairn</span></div>
-
+      <div class="cmd" data-for="macos" data-copy="curl -fsSL https://github.com/alperkyoruk/cairn/releases/latest/download/cairn_darwin_$(uname -m | sed 's/x86_64/amd64/').tar.gz | tar -xzf - cairn &amp;&amp; ./cairn"><span class="p" aria-hidden="true">$</span><span class="text">curl -fsSL https://github.com/alperkyoruk/cairn/releases/latest/download/cairn_darwin_$(uname -m | sed 's/x86_64/amd64/').tar.gz | tar -xzf - cairn &amp;&amp; ./cairn</span></div>
+      <div class="cmd" data-for="linux" data-copy="curl -fsSL https://github.com/alperkyoruk/cairn/releases/latest/download/cairn_linux_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz | tar -xzf - cairn &amp;&amp; ./cairn"><span class="p" aria-hidden="true">$</span><span class="text">curl -fsSL https://github.com/alperkyoruk/cairn/releases/latest/download/cairn_linux_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz | tar -xzf - cairn &amp;&amp; ./cairn</span></div>
+      <div class="cmd" data-for="windows" data-copy="irm https://github.com/alperkyoruk/cairn/releases/latest/download/cairn_windows_amd64.zip -OutFile cairn.zip; Expand-Archive cairn.zip -DestinationPath . -Force; .\cairn.exe"><span class="p" aria-hidden="true">&gt;</span><span class="text">irm https://github.com/alperkyoruk/cairn/releases/latest/download/cairn_windows_amd64.zip -OutFile cairn.zip; Expand-Archive cairn.zip -DestinationPath . -Force; .\cairn.exe</span></div>
+      <div class="cmd" data-for="docker" data-copy="docker run -d -p 127.0.0.1:7777:7777 -v cairn-data:/data ghcr.io/alperkyoruk/cairn:latest"><span class="p" aria-hidden="true">$</span><span class="text">docker run -d -p 127.0.0.1:7777:7777 -v cairn-data:/data ghcr.io/alperkyoruk/cairn:latest</span></div>
       <button class="btn copy" type="button"><span class="label" aria-live="polite">Copy</span></button>
     </div>
 
@@ -73,7 +68,7 @@
   </div>
 
   <p class="facts">
-    One file, ~5MB<s aria-hidden="true">·</s>No runtime, no dependencies<s aria-hidden="true">·</s>SQLite<s aria-hidden="true">·</s>Frontend embedded<s aria-hidden="true">·</s>Works airgapped<s aria-hidden="true">·</s>Apache-2.0
+    __VERSION__<s aria-hidden="true">·</s>One file, ~5MB<s aria-hidden="true">·</s>No runtime, no dependencies<s aria-hidden="true">·</s>SQLite<s aria-hidden="true">·</s>Frontend embedded<s aria-hidden="true">·</s>Works airgapped<s aria-hidden="true">·</s>Apache-2.0
   </p>
 </header>
 
@@ -273,12 +268,12 @@
             nothing to point at a database, no runtime to provision.
           </p>
           <div class="strip">
-            <div class="cmd" data-copy="tar -xzf cairn___VERSION___darwin_arm64.tar.gz &amp;&amp; ./cairn"><span class="p" aria-hidden="true">$</span><span class="text">tar -xzf cairn___VERSION___darwin_arm64.tar.gz &amp;&amp; ./cairn</span></div>
+            <div class="cmd" data-copy="curl -fsSL https://github.com/alperkyoruk/cairn/releases/latest/download/cairn_$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz | tar -xzf - cairn &amp;&amp; ./cairn"><span class="p" aria-hidden="true">$</span><span class="text">curl -fsSL https://github.com/alperkyoruk/cairn/releases/latest/download/cairn_$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz | tar -xzf - cairn &amp;&amp; ./cairn</span></div>
           </div>
           <ul>
             <li>macOS and Linux on amd64 and arm64, Windows on amd64, with <code>checksums.txt</code>.</li>
             <li>Docker instead: the image is 17.3MB, <code>linux/amd64</code> and <code>linux/arm64</code>, built <code>FROM scratch</code> and running as an unprivileged uid.</li>
-            <li>From source: Go 1.25+ and Node 24+, then <code>make build &amp;&amp; ./cairn</code>.</li>
+            <li>From source: <code>git clone</code>, then Go 1.25+ and Node 24+ and <code>make build &amp;&amp; ./cairn</code>.</li>
           </ul>
         </div>
       </div>
