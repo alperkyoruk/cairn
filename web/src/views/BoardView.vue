@@ -1,7 +1,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from '../api.js'
 import TaskTable from '../components/TaskTable.vue'
+
+const router = useRouter()
 
 const rows = ref([])
 const projects = ref([])
@@ -15,6 +18,15 @@ const slugTouched = ref(false)
 const createError = ref('')
 
 const waiting = computed(() => rows.value.filter((r) => r.task.status === 'review').length)
+
+// The board lists tasks, so a project with none of them has no row and would
+// otherwise be invisible and unreachable the moment it is created. This strip
+// is the only place an empty project can be found.
+const projectCounts = computed(() =>
+  projects.value.map((p) => ({
+    ...p,
+    count: rows.value.filter((r) => r.task.project === p.slug).length,
+  })))
 
 async function load() {
   try {
@@ -59,9 +71,11 @@ async function createProject() {
     return
   }
   try {
-    await api.createProject(draft.value.slug, draft.value.name)
+    const project = await api.createProject(draft.value.slug, draft.value.name)
     creating.value = false
-    await load()
+    // Straight into it: you make a project in order to put something in it,
+    // and a new one has no row on the board to click.
+    router.push(`/p/${project.slug}`)
   } catch (err) {
     createError.value = err.message
   }
@@ -123,6 +137,19 @@ onMounted(load)
 
     <TaskTable v-if="rows.length" :rows="rows" :agents="agents" />
 
+    <div v-if="rows.length && projects.length" class="projects rule-top">
+      <span class="faint">projects</span>
+      <RouterLink
+        v-for="p in projectCounts"
+        :key="p.id"
+        :to="`/p/${p.slug}`"
+        class="project mono"
+        :class="{ vacant: p.count === 0 }"
+      >
+        {{ p.slug }}<span class="count">{{ p.count }}</span>
+      </RouterLink>
+    </div>
+
     <!-- The only empty state that explains anything, because it is the only one
          a person sees before they understand the product. -->
     <div v-else-if="!projects.length" class="empty">
@@ -180,6 +207,22 @@ onMounted(load)
 
 .foot { display: flex; align-items: center; gap: var(--s-3); margin-top: var(--s-6); }
 .note { margin-left: auto; font-size: var(--t-sm); color: var(--text-dim); }
+
+.projects {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-4);
+  margin-top: var(--s-8);
+  padding: var(--s-6) 14px 0;
+  font-size: var(--t-sm);
+}
+.project { color: var(--text-muted); }
+.project:hover { color: var(--accent); text-decoration: none; }
+.count { margin-left: var(--s-2); color: var(--text-faint); }
+/* An empty project is the one you cannot reach any other way, so it stays
+   legible rather than fading out with its zero. */
+.vacant { color: var(--text-dim); }
 
 .empty { padding: var(--s-12) 14px; max-width: 54ch; }
 .lead { font-size: var(--t-md); color: var(--text-muted); margin-bottom: var(--s-3); }

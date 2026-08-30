@@ -1,7 +1,19 @@
 <script setup>
 import CairnMark from './icons/CairnMark.vue'
+import { api } from '../api.js'
+import { session } from '../session.js'
 
 defineProps({ actor: Object })
+
+async function signOut() {
+  // Revokes the session token server-side, not just the cookie, so a copied
+  // cookie is dead too.
+  try {
+    await api.logout()
+  } finally {
+    session.actor = null
+  }
+}
 </script>
 
 <template>
@@ -15,8 +27,11 @@ defineProps({ actor: Object })
       <RouterLink to="/" class="link">Board</RouterLink>
       <RouterLink to="/agents" class="link">Agents</RouterLink>
 
-      <!-- A label, not a menu. There is nothing behind it. -->
+      <!-- The design has the username as a label with nothing behind it, which
+           left no way to sign out at all. Rather than turn it into a menu, the
+           way out sits beside it and stays quiet. -->
       <span class="who">{{ actor?.name }}</span>
+      <button class="signout" @click="signOut">sign out</button>
     </div>
   </nav>
 </template>
@@ -50,4 +65,16 @@ defineProps({ actor: Object })
 .link.router-link-exact-active { color: var(--accent); }
 
 .who { font-size: 12.5px; color: var(--text-dim); margin-left: var(--s-2); }
+
+.signout {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: color var(--motion);
+}
+.signout:hover { color: var(--text-muted); }
 </style>

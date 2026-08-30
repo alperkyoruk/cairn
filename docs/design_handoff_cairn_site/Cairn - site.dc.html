@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-8518afdb-cca3-4ba1-8f1e-6b0b25a28520/styles.css">
+<style>
+:root {
+  --cairn-blocked: oklch(0.72 0.105 70);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+body { margin: 0; -webkit-font-smoothing: antialiased; }
+a { color: var(--color-accent); text-decoration: none; }
+a:hover { color: var(--color-accent-300); }
+</style>
+</helmet>
+
+<div style="background:var(--color-bg);color:var(--color-text);min-height:100vh">
+
+<nav class="nav" style="max-width:1100px;margin:0 auto;padding:var(--space-6) 40px">
+  <span class="nav-brand" style="display:inline-flex;align-items:center;gap:9px"><svg width="17" height="17" viewBox="0 0 16 16" fill="var(--color-accent)"><path d="M8 1.4 10.4 4H5.6L8 1.4Z"></path><path d="M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z"></path><path d="M2.2 9h11.6l1.6 3.4H.6L2.2 9Z"></path></svg>cairn</span>
+  <a href="#concept">Concept</a>
+  <a href="#mcp">MCP</a>
+  <a href="#install">Install</a>
+  <a href="https://github.com/alperkyoruk/cairn" style="color:var(--color-neutral-400)">GitHub</a>
+</nav>
+
+<!-- HERO -->
+<header style="max-width:1100px;margin:0 auto;padding:80px 40px 96px">
+  <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-8)">
+    <span style="width:22px;height:1px;background:var(--color-accent)"></span>
+    <span style="font-family:var(--mono);font-size:11.5px;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-accent)">Self-hosted issue tracker</span>
+  </div>
+
+  <h1 style="font-size:56px;line-height:1.06;margin:0 0 var(--space-8);max-width:19ch">An issue tracker your coding agent can actually use.</h1>
+
+  <p style="margin:0 0 44px;max-width:62ch;font-size:18px;line-height:1.6;color:var(--color-neutral-300);text-wrap:pretty">A cairn is a stack of stones left on a trail so whoever comes next knows the way. Every task here carries a note for whoever picks it up, human or agent.</p>
+
+  <div>
+    <div class="seg" style="margin-bottom:var(--space-4)">
+      <label class="seg-opt"><input type="radio" name="install" checked="{{ binaryChecked }}" onChange="{{ pickBinary }}"><span>Binary</span></label>
+      <label class="seg-opt"><input type="radio" name="install" checked="{{ dockerChecked }}" onChange="{{ pickDocker }}"><span>Docker</span></label>
+      <label class="seg-opt"><input type="radio" name="install" checked="{{ sourceChecked }}" onChange="{{ pickSource }}"><span>From source</span></label>
+    </div>
+
+    <div style="display:flex;align-items:stretch;gap:0;border-radius:var(--radius-md);background:color-mix(in srgb,var(--color-surface) 55%,var(--color-bg));box-shadow:inset 0 0 0 1px var(--color-neutral-800)">
+      <div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4) var(--space-6);overflow-x:auto;flex:1">
+        <span style="font-family:var(--mono);font-size:13px;color:var(--color-accent-400);flex:none">$</span>
+        <code style="font-family:var(--mono);font-size:12.5px;line-height:1.5;color:var(--color-neutral-200);white-space:nowrap">{{ installCmd }}</code>
+      </div>
+      <button class="btn btn-primary" onClick="{{ copyInstall }}" style="border-radius:0 var(--radius-md) var(--radius-md) 0;border-width:0 0 0 1px;border-color:var(--color-neutral-800);flex:none;padding-inline:var(--space-6)">{{ copyLabel }}</button>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-3) var(--space-6);margin-top:var(--space-4)">
+      <span style="font-size:13px;color:var(--color-neutral-400)">Then open <span style="font-family:var(--mono);font-size:12.5px;color:var(--color-neutral-200)">http://127.0.0.1:7777</span>. That is the whole install.</span>
+      <a href="https://github.com/alperkyoruk/cairn/releases/tag/v0.1.0" style="font-size:12.5px">All builds &amp; checksums</a>
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:var(--space-3) var(--space-6);margin-top:var(--space-8);font-size:12.5px;color:var(--color-neutral-600)">
+      <span>One file, ~5MB</span><span style="color:var(--color-neutral-800)">·</span>
+      <span>No runtime, no dependencies</span><span style="color:var(--color-neutral-800)">·</span>
+      <span>SQLite</span><span style="color:var(--color-neutral-800)">·</span>
+      <span>Frontend embedded</span><span style="color:var(--color-neutral-800)">·</span>
+      <span>Works airgapped</span><span style="color:var(--color-neutral-800)">·</span>
+      <span>Apache-2.0</span>
+    </div>
+  </div>
+</header>
+
+<!-- PREMISE -->
+<section id="premise" style="max-width:1100px;margin:0 auto;padding:0 40px 96px">
+  <div style="background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat top / 100% 1px;padding-top:64px">
+    <h2 style="font-size:34px;margin:0 0 var(--space-8);max-width:24ch">Agent support is not a plugin.</h2>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:48px;max-width:940px">
+      <div>
+        <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-4)">How every other tracker works</h6>
+        <p style="margin:0;font-size:15px;line-height:1.65;color:var(--color-neutral-400);text-wrap:pretty">Designed human-first, then agent access is bolted on afterwards as a third-party add-on wrapping the public API. The agent is a robot pretending to be a user: it posts comments, it moves cards, and the schema has no idea it exists. Nothing in the data model distinguishes a decision a person made from a step a process took.</p>
+      </div>
+      <div>
+        <h6 style="color:var(--color-accent);margin-bottom:var(--space-4)">How Cairn works</h6>
+        <p style="margin:0;font-size:15px;line-height:1.65;color:var(--color-neutral-300);text-wrap:pretty">Agent behaviour is in the schema and in the rules. Agents are named actors with their own tokens. Two transitions are reserved for the human and cannot be made by an agent at all — deciding what gets worked on, and deciding something is finished. Everything else an agent does, it does as a first-class user of the same server.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONCEPT -->
+<section id="concept" style="max-width:1100px;margin:0 auto;padding:0 40px 96px">
+  <div style="background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat top / 100% 1px;padding-top:64px">
+    <h2 style="font-size:34px;margin:0 0 var(--space-6);max-width:26ch">Two records per task, and they are not the same kind of thing.</h2>
+    <p style="margin:0 0 48px;max-width:64ch;font-size:16px;line-height:1.6;color:var(--color-neutral-400);text-wrap:pretty">This is the whole idea. One is the note on top of the cairn — small, current, overwritten every time. The other is the trail behind it — append-only, never edited, never deleted.</p>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px">
+
+      <div>
+        <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+          <h3 style="font-size:21px;margin:0">state</h3>
+          <span style="font-family:var(--mono);font-size:11.5px;color:var(--color-neutral-600)">one row · overwritten in place</span>
+        </div>
+
+        <div style="border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-sm),inset 2px 0 0 var(--cairn-blocked);padding:var(--space-6) var(--space-8) var(--space-8)">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-6);margin-bottom:var(--space-6)">
+            <h6 style="margin:0;color:var(--color-neutral-400)">State</h6>
+            <span style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--cairn-blocked)"><span style="width:8px;height:8px;flex:none;background:var(--cairn-blocked);transform:rotate(45deg)"></span>blocked</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:var(--space-6)">
+            <div style="padding:var(--space-4) var(--space-6);border-radius:var(--radius-md);background:oklch(0.72 0.105 70 / 0.13)">
+              <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.06em;color:var(--cairn-blocked);margin-bottom:var(--space-2)">blocked_on</div>
+              <p style="margin:0;font-size:15px;line-height:1.5;color:var(--color-text);text-wrap:pretty">Need read access to the archive bucket — the 2022 exports are not in the repo.</p>
+            </div>
+            <div>
+              <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.06em;color:var(--color-neutral-500);margin-bottom:var(--space-2)">where_i_left_off</div>
+              <p style="margin:0;font-size:14px;line-height:1.55;color:var(--color-neutral-200);text-wrap:pretty">The importer parses the 2019 format but chokes on the 2021 header row, which added a currency column in the middle rather than at the end. Rewrote the column mapping to be name-based instead of positional.</p>
+            </div>
+            <div>
+              <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.06em;color:var(--color-neutral-500);margin-bottom:var(--space-2)">next_step</div>
+              <p style="margin:0;font-size:14px;line-height:1.55;color:var(--color-neutral-200);text-wrap:pretty">Get a sample file from the 2022 exports and confirm the header names did not change again before finishing the mapper.</p>
+            </div>
+            <div style="font-size:12px;color:var(--color-neutral-600)">written by codex · 1d ago</div>
+          </div>
+        </div>
+
+        <p style="margin:var(--space-6) 0 0;font-size:14px;line-height:1.6;color:var(--color-neutral-500);text-wrap:pretty">Three fields, one byline, no history. An agent picking the task up reads this and nothing else. So does the human, at a glance, from the board.</p>
+      </div>
+
+      <div>
+        <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+          <h3 style="font-size:21px;margin:0">worklog</h3>
+          <span style="font-family:var(--mono);font-size:11.5px;color:var(--color-neutral-600)">append-only · 28 entries</span>
+        </div>
+
+        <div style="padding-left:var(--space-3)">
+          <div style="background:linear-gradient(to bottom,transparent,var(--color-divider) 20px,var(--color-divider) calc(100% - 20px),transparent) no-repeat 5px 0 / 1px 100%">
+            <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-6);padding-bottom:var(--space-8)">
+              <span style="width:11px;height:11px;border-radius:50%;background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-neutral-800)"></span>
+              <span style="font-family:var(--mono);font-size:12px;color:var(--color-neutral-600);align-self:center">23 earlier entries · 4 – 19 Aug</span>
+            </div>
+            <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-6);padding-bottom:var(--space-8)">
+              <span style="width:5px;height:5px;border-radius:50%;background:var(--color-accent-500);margin:6px 0 0 3px"></span>
+              <div>
+                <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-3)">
+                  <span style="font-size:12.5px;color:var(--color-neutral-300)">codex</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--color-neutral-500);padding:2px 8px;border-radius:var(--radius-sm);background:color-mix(in srgb,var(--color-text) 6%,transparent)">queue<span style="color:var(--color-neutral-600)">→</span><span style="color:var(--color-accent-300)">active</span></span>
+                  <span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-700);margin-left:auto">20 Aug 09:12</span>
+                </div>
+                <p style="margin:0 0 var(--space-2);font-size:13.5px;line-height:1.55;color:var(--color-neutral-300);text-wrap:pretty">Read the 2019 importer end to end and wrote a fixture from the sample file in testdata.</p>
+                <p style="margin:0;font-size:13.5px;line-height:1.55;color:var(--color-neutral-500);text-wrap:pretty">Fixture parses. The column mapping is positional, which is going to break on any header change.</p>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-6);padding-bottom:var(--space-8)">
+              <span style="width:5px;height:5px;border-radius:50%;background:var(--color-neutral-700);margin:6px 0 0 3px"></span>
+              <div>
+                <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-3)">
+                  <span style="font-size:12.5px;color:var(--color-neutral-300)">codex</span>
+                  <span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-700);margin-left:auto">21 Aug 16:05</span>
+                </div>
+                <p style="margin:0 0 var(--space-2);font-size:13.5px;line-height:1.55;color:var(--color-neutral-300);text-wrap:pretty">Ran the mapper against every file in testdata and diffed row counts against the old importer.</p>
+                <p style="margin:0;font-size:13.5px;line-height:1.55;color:var(--color-neutral-500);text-wrap:pretty">Identical for 2019, 41 rows short for 2021 — all of them rows where the currency column is blank.</p>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-6)">
+              <span style="width:7px;height:7px;background:var(--cairn-blocked);transform:rotate(45deg);margin:6px 0 0 2px"></span>
+              <div>
+                <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-3)">
+                  <span style="font-size:12.5px;color:var(--color-neutral-300)">codex</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--color-neutral-500);padding:2px 8px;border-radius:var(--radius-sm);background:oklch(0.72 0.105 70 / 0.13)">active<span style="color:var(--color-neutral-600)">→</span><span style="color:var(--cairn-blocked)">blocked</span></span>
+                  <span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-700);margin-left:auto">22 Aug 10:31</span>
+                </div>
+                <p style="margin:0 0 var(--space-2);font-size:13.5px;line-height:1.55;color:var(--color-neutral-300);text-wrap:pretty">Looked for the 2022 exports in the repo and in the fixtures directory.</p>
+                <p style="margin:0;font-size:13.5px;line-height:1.55;color:var(--color-neutral-500);text-wrap:pretty">Not there, and not in any branch. They are in the archive bucket, which this machine has no credentials for.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p style="margin:var(--space-8) 0 0;font-size:14px;line-height:1.6;color:var(--color-neutral-500);text-wrap:pretty">What was tried, what happened, and the status change it came with. Nothing here is ever edited or deleted, so the record of how a task got where it is survives the agent that wrote it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MCP -->
+<section id="mcp" style="max-width:1100px;margin:0 auto;padding:0 40px 96px">
+  <div style="background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat top / 100% 1px;padding-top:64px">
+    <h2 style="font-size:34px;margin:0 0 var(--space-6);max-width:24ch">Your agent talks to it over MCP.</h2>
+    <p style="margin:0 0 48px;max-width:64ch;font-size:16px;line-height:1.6;color:var(--color-neutral-400);text-wrap:pretty">Register the agent in the web UI, copy the token once, paste it into the agent's MCP config. Streamable HTTP at <span style="font-family:var(--mono);font-size:14px;color:var(--color-neutral-200)">/mcp</span>, same server, same database. The agent never sees the web interface — that is yours.</p>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:48px;align-items:start">
+      <div>
+        <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-4)">mcp config</h6>
+        <pre style="margin:0;padding:var(--space-8);border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 55%,var(--color-bg));box-shadow:inset 0 0 0 1px var(--color-neutral-800);font-family:var(--mono);font-size:13px;line-height:1.75;color:var(--color-neutral-300);overflow-x:auto">{
+  <span style="color:var(--color-accent-300)">"mcpServers"</span>: {
+    <span style="color:var(--color-accent-300)">"cairn"</span>: {
+      <span style="color:var(--color-accent-300)">"type"</span>: <span style="color:var(--color-neutral-200)">"http"</span>,
+      <span style="color:var(--color-accent-300)">"url"</span>: <span style="color:var(--color-neutral-200)">"http://localhost:7777/mcp"</span>,
+      <span style="color:var(--color-accent-300)">"headers"</span>: {
+        <span style="color:var(--color-accent-300)">"Authorization"</span>: <span style="color:var(--color-neutral-200)">"Bearer crn_7fJq…3uQg"</span>
+      }
+    }
+  }
+}</pre>
+      </div>
+
+      <div>
+        <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-4)">What the agent can do</h6>
+        <div style="display:flex;flex-direction:column;gap:var(--space-4)">
+          <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-4);align-items:start"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-accent-500);margin:8px 0 0 3px"></span><span style="font-size:14px;line-height:1.55;color:var(--color-neutral-300)">Read the board and read one task with its state and full worklog</span></div>
+          <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-4);align-items:start"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-accent-500);margin:8px 0 0 3px"></span><span style="font-size:14px;line-height:1.55;color:var(--color-neutral-300)">Write the task's state — where it left off, the next step, what it is blocked on</span></div>
+          <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-4);align-items:start"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-accent-500);margin:8px 0 0 3px"></span><span style="font-size:14px;line-height:1.55;color:var(--color-neutral-300)">Append a worklog entry: what it tried, what happened</span></div>
+          <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-4);align-items:start"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-accent-500);margin:8px 0 0 3px"></span><span style="font-size:14px;line-height:1.55;color:var(--color-neutral-300)">Move a task through the statuses it is allowed to move it through</span></div>
+          <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-4);align-items:start"><span style="width:5px;height:5px;border-radius:50%;background:var(--color-accent-500);margin:8px 0 0 3px"></span><span style="font-size:14px;line-height:1.55;color:var(--color-neutral-300)">File a new task in the backlog</span></div>
+        </div>
+
+        <div style="margin-top:var(--space-8);padding:var(--space-6);border-radius:var(--radius-md);background:color-mix(in srgb,var(--color-surface) 55%,var(--color-bg))">
+          <h6 style="color:var(--cairn-blocked);margin-bottom:var(--space-3)">What it cannot do</h6>
+          <p style="margin:0;font-size:13.5px;line-height:1.6;color:var(--color-neutral-400);text-wrap:pretty">Queue a task from the backlog, or mark anything done. Those two transitions are the human's, enforced on the server rather than by prompt. You decide what gets worked on and you decide when it is finished.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- QUICKSTART -->
+<section id="install" style="max-width:1100px;margin:0 auto;padding:0 40px 96px">
+  <div style="background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat top / 100% 1px;padding-top:64px">
+    <h2 style="font-size:34px;margin:0 0 48px">Running in three steps.</h2>
+
+    <div style="display:flex;flex-direction:column;gap:48px;max-width:820px">
+
+      <div style="display:grid;grid-template-columns:34px 1fr;gap:var(--space-8);align-items:start">
+        <span style="font-family:var(--mono);font-size:13px;color:var(--color-accent);padding-top:var(--space-1)">01</span>
+        <div>
+          <h3 style="font-size:19px;margin:0 0 var(--space-3)">Unpack it and run it</h3>
+          <p style="margin:0 0 var(--space-4);font-size:14.5px;line-height:1.6;color:var(--color-neutral-400);max-width:60ch;text-wrap:pretty">One file with the frontend inside it. Nothing to install alongside, nothing to point at a database, no runtime to provision.</p>
+          <div style="padding:var(--space-4) var(--space-6);border-radius:var(--radius-md);background:color-mix(in srgb,var(--color-surface) 55%,var(--color-bg));box-shadow:inset 0 0 0 1px var(--color-neutral-800);overflow-x:auto;margin-bottom:var(--space-3)">
+            <code style="font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--color-neutral-200);white-space:nowrap"><span style="color:var(--color-accent-400)">$ </span>tar -xzf cairn_v0.1.0_darwin_arm64.tar.gz &amp;&amp; ./cairn</code>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:var(--space-2);font-size:12.5px;line-height:1.6;color:var(--color-neutral-600);max-width:64ch">
+            <span>macOS and Linux on amd64 and arm64, Windows on amd64, with <span style="font-family:var(--mono)">checksums.txt</span>.</span>
+            <span>Docker instead: the image is 17.3MB, <span style="font-family:var(--mono)">linux/amd64</span> and <span style="font-family:var(--mono)">linux/arm64</span>, built <span style="font-family:var(--mono)">FROM scratch</span> and running as an unprivileged uid.</span>
+            <span>From source: Go 1.25+ and Node 24+, then <span style="font-family:var(--mono)">make build &amp;&amp; ./cairn</span>.</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:34px 1fr;gap:var(--space-8);align-items:start">
+        <span style="font-family:var(--mono);font-size:13px;color:var(--color-accent);padding-top:var(--space-1)">02</span>
+        <div>
+          <h3 style="font-size:19px;margin:0 0 var(--space-3)">Name yourself</h3>
+          <p style="margin:0 0 var(--space-4);font-size:14.5px;line-height:1.6;color:var(--color-neutral-400);max-width:60ch;text-wrap:pretty">Open the root URL and pick a username and a password. No email, no confirmation step, no account. This is your server — the name you pick is the one that appears next to every task you touch.</p>
+          <p style="margin:0;font-size:12.5px;color:var(--color-neutral-600);max-width:60ch;text-wrap:pretty">There is no reset email and never will be. If you forget it, run <span style="font-family:var(--mono);color:var(--color-neutral-400)">cairn --reset-password</span> on the machine it runs on.</p>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:34px 1fr;gap:var(--space-8);align-items:start">
+        <span style="font-family:var(--mono);font-size:13px;color:var(--color-accent);padding-top:var(--space-1)">03</span>
+        <div>
+          <h3 style="font-size:19px;margin:0 0 var(--space-3)">Register an agent</h3>
+          <p style="margin:0 0 var(--space-4);font-size:14.5px;line-height:1.6;color:var(--color-neutral-400);max-width:60ch;text-wrap:pretty">Give it a name — <span style="font-family:var(--mono);font-size:13.5px;color:var(--color-neutral-200)">claude</span>, <span style="font-family:var(--mono);font-size:13.5px;color:var(--color-neutral-200)">codex</span> — and Cairn issues a token. It is shown exactly once and stored only as a hash. Paste it into that agent's MCP config and it starts filing its own worklog.</p>
+          <div style="display:flex;gap:var(--space-3);flex-wrap:wrap">
+            <a class="btn btn-primary" href="https://github.com/alperkyoruk/cairn">Read the README</a>
+            <a class="btn btn-secondary" href="https://github.com/alperkyoruk/cairn/issues">Open an issue</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NOT DOING -->
+<sc-if value="{{ showDontList }}" hint-placeholder-val="{{ true }}">
+<section style="max-width:1100px;margin:0 auto;padding:0 40px 96px">
+  <div style="background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat top / 100% 1px;padding-top:64px">
+    <h2 style="font-size:34px;margin:0 0 var(--space-6);max-width:26ch">What it does not do, and will not.</h2>
+    <p style="margin:0 0 var(--space-8);max-width:64ch;font-size:16px;line-height:1.6;color:var(--color-neutral-400);text-wrap:pretty">This is a closed list, not a roadmap. Every one of them is a deliberate omission, and the tool is smaller and faster because of it.</p>
+
+    <div style="display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);max-width:920px;margin-bottom:44px">
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">Gantt</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">calendar view</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">saved views</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">due dates</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">reminders</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">recurring tasks</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">labels</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">tags</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">priorities</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">estimates</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">sprints</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">cycles</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">milestones</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">attachments</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">comments</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">subtasks</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">task hierarchy</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">dependencies</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">CalDAV</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">SMTP</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">notifications</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">toasts</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">mobile app</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">desktop app</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">teams</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">roles</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">invitations</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">sharing</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">assignee pickers</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">mentions</span><span style="color:var(--color-neutral-800)">·</span>
+      <span style="font-size:14.5px;color:var(--color-neutral-600)">activity feeds</span>
+    </div>
+
+    <p style="margin:0;max-width:52ch;font-size:19px;line-height:1.5;color:var(--color-neutral-200);text-wrap:pretty">There is one user. There is no one to notify, no one to assign to, and no one to share with.</p>
+  </div>
+</section>
+</sc-if>
+
+<!-- LICENSE / CONTRIBUTING -->
+<section style="max-width:1100px;margin:0 auto;padding:0 40px 96px">
+  <div style="background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat top / 100% 1px;padding-top:64px">
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:48px;max-width:940px">
+      <div>
+        <h3 style="font-size:21px;margin:0 0 var(--space-4)">Apache-2.0</h3>
+        <p style="margin:0;font-size:14.5px;line-height:1.65;color:var(--color-neutral-400);text-wrap:pretty">Use it, fork it, run it inside a company. The whole point is that it is yours once it is on your machine — there is no hosted tier to upsell you to and no telemetry to switch off.</p>
+      </div>
+      <div>
+        <h3 style="font-size:21px;margin:0 0 var(--space-4)">Contributing</h3>
+        <p style="margin:0 0 var(--space-4);font-size:14.5px;line-height:1.65;color:var(--color-neutral-400);text-wrap:pretty">Go on the server, Vue 3 on the frontend, no CSS framework and no icon library — every dependency ends up in the binary and in the supply chain of a security-adjacent self-hosted tool. Read the list above before proposing a feature.</p>
+        <div style="display:flex;gap:var(--space-3);flex-wrap:wrap">
+          <a class="btn btn-secondary" href="https://github.com/alperkyoruk/cairn">Repository</a>
+          <a class="btn btn-secondary" href="https://github.com/alperkyoruk/cairn/blob/main/LICENSE">License</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer style="max-width:1100px;margin:0 auto;padding:0 40px 80px">
+  <div style="background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat top / 100% 1px;padding-top:44px;display:flex;flex-wrap:wrap;gap:var(--space-8);align-items:baseline">
+    <span style="display:inline-flex;align-items:center;gap:9px;font-size:16px"><svg width="15" height="15" viewBox="0 0 16 16" fill="var(--color-neutral-500)"><path d="M8 1.4 10.4 4H5.6L8 1.4Z"></path><path d="M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z"></path><path d="M2.2 9h11.6l1.6 3.4H.6L2.2 9Z"></path></svg><span style="color:var(--color-neutral-400)">cairn</span></span>
+    <div style="display:flex;flex-wrap:wrap;gap:var(--space-6);font-size:13px">
+      <a href="https://github.com/alperkyoruk/cairn" style="color:var(--color-neutral-500)">GitHub</a>
+      <a href="https://github.com/alperkyoruk/cairn#readme" style="color:var(--color-neutral-500)">README</a>
+      <a href="https://github.com/alperkyoruk/cairn/issues" style="color:var(--color-neutral-500)">Issues</a>
+      <a href="https://github.com/alperkyoruk/cairn/blob/main/LICENSE" style="color:var(--color-neutral-500)">Apache-2.0</a>
+    </div>
+    <span style="margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--color-neutral-700)">no analytics on this page</span>
+  </div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;installDefault&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;Binary&quot;, &quot;Docker&quot;, &quot;Source&quot;], &quot;default&quot;: &quot;Binary&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Hero&quot; },
+  &quot;showDontList&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Sections&quot; }
+}">
+const CMD = {
+  binary: 'tar -xzf cairn_v0.1.0_darwin_arm64.tar.gz && ./cairn',
+  docker: 'docker run -d -p 127.0.0.1:7777:7777 -v cairn-data:/data ghcr.io/alperkyoruk/cairn:latest',
+  source: 'make build && ./cairn'
+};
+
+class Component extends DCLogic {
+  state = { tab: null, copied: false };
+
+  get tab() {
+    const d = (this.props.installDefault ?? 'Binary').toLowerCase();
+    return this.state.tab ?? (CMD[d] ? d : 'binary');
+  }
+
+  copy = () => {
+    const cmd = CMD[this.tab];
+    if (navigator.clipboard) navigator.clipboard.writeText(cmd).catch(() => {});
+    this.setState({ copied: true });
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.setState({ copied: false }), 1600);
+  };
+
+  componentWillUnmount() { clearTimeout(this._t); }
+
+  renderVals() {
+    const tab = this.tab;
+    return {
+      installCmd: CMD[tab],
+      binaryChecked: tab === 'binary',
+      sourceChecked: tab === 'source',
+      dockerChecked: tab === 'docker',
+      pickBinary: () => this.setState({ tab: 'binary' }),
+      pickSource: () => this.setState({ tab: 'source' }),
+      pickDocker: () => this.setState({ tab: 'docker' }),
+      copyInstall: this.copy,
+      copyLabel: this.state.copied ? 'Copied' : 'Copy',
+      showDontList: this.props.showDontList ?? true
+    };
+  }
+}
+</script>
+</body>
+</html>
