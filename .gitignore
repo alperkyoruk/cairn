@@ -1,13 +1,12 @@
 # build output
 /cairn
-/dist/
+web/dist/*
+!web/dist/.gitkeep
 
 # the database and its WAL sidecars
 *.db
 *.db-wal
 *.db-shm
 
-# frontend (arrives in step 3)
 node_modules/
-
 .DS_Store

@@ -19,6 +19,7 @@ var methodOps = map[string]Op{
 	"GetProject":     OpRead,
 	"GetTask":        OpRead,
 	"GetTaskByRef":   OpRead,
+	"LookupTask":     OpRead,
 	"ListAgents":     OpRead,
 	"ListProjects":   OpRead,
 	"ListTasks":      OpRead,
@@ -99,7 +100,7 @@ func TestOnlyServiceReachesTheStore(t *testing.T) {
 			return err
 		}
 		if d.IsDir() {
-			if name := d.Name(); name == ".git" || name == "node_modules" || name == "web" {
+			if name := d.Name(); name == ".git" || name == "node_modules" || name == "dist" {
 				return fs.SkipDir
 			}
 			return nil

@@ -213,7 +213,11 @@ func Board(ctx context.Context, q Queryer) ([]model.BoardRow, error) {
 		JOIN project p        ON p.id = t.project_id
 		LEFT JOIN task_state s ON s.task_id = t.id
 		LEFT JOIN actor a      ON a.id = s.updated_by
-		ORDER BY t.updated_at DESC, t.id`)
+		-- Timestamps are millisecond precision, so two tasks touched in the same
+		-- millisecond tie. Ids are UUIDv7 and therefore time-ordered, which makes
+		-- them the correct tiebreak: descending keeps "most recent first" true
+		-- all the way down.
+		ORDER BY t.updated_at DESC, t.id DESC`)
 	if err != nil {
 		return nil, err
 	}

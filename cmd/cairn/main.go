@@ -1,4 +1,5 @@
-// Command cairn runs the issue tracker.
+// Command cairn runs the issue tracker: a JSON API, the embedded web
+// interface, and (from step 4) an MCP server, all in one binary.
 package main
 
 import (
@@ -6,26 +7,39 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"golang.org/x/term"
 
+	"github.com/alperkyoruk/cairn/internal/httpapi"
 	"github.com/alperkyoruk/cairn/internal/service"
+	"github.com/alperkyoruk/cairn/web"
 )
 
 func main() {
 	dbPath := flag.String("db", "cairn.db", "path to the Cairn database file")
+	addr := flag.String("addr", "127.0.0.1:7777",
+		"address to listen on; use :7777 to accept connections from other machines")
+	secureCookies := flag.Bool("secure-cookies", false,
+		"mark the session cookie Secure; set this when serving over HTTPS")
 	reset := flag.Bool("reset-password", false,
 		"set a new password for the user and revoke every session they hold")
 	flag.Parse()
 
-	if err := run(context.Background(), *dbPath, *reset); err != nil {
+	if err := run(*dbPath, *addr, *secureCookies, *reset); err != nil {
 		fmt.Fprintln(os.Stderr, "cairn:", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, dbPath string, reset bool) error {
+func run(dbPath, addr string, secureCookies, reset bool) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	svc, err := service.Open(ctx, dbPath)
 	if err != nil {
 		return err
@@ -35,18 +49,44 @@ func run(ctx context.Context, dbPath string, reset bool) error {
 	if reset {
 		return resetPassword(ctx, svc)
 	}
+	return serve(ctx, svc, addr, secureCookies)
+}
+
+func serve(ctx context.Context, svc *service.Service, addr string, secureCookies bool) error {
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           httpapi.New(svc, web.Handler(), httpapi.WithSecureCookies(secureCookies)),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 
 	needsSetup, err := svc.NeedsSetup(ctx)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("cairn: listening on http://%s\n", addr)
 	if needsSetup {
-		fmt.Printf("cairn: database ready at %s, no user yet\n", dbPath)
-	} else {
-		fmt.Printf("cairn: database ready at %s\n", dbPath)
+		fmt.Println("cairn: no user yet — open that address to choose a username and password")
 	}
-	fmt.Println("cairn: no server yet — the HTTP and MCP interfaces are still being built")
-	return nil
+	if !web.Built() {
+		fmt.Println("cairn: warning — no frontend in this binary; the API works, the web interface does not")
+	}
+
+	errs := make(chan error, 1)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errs <- err
+		}
+	}()
+
+	select {
+	case err := <-errs:
+		return err
+	case <-ctx.Done():
+		fmt.Println("\ncairn: shutting down")
+		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutdown)
+	}
 }
 
 // resetPassword is the only account recovery path in Cairn. There is no email

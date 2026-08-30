@@ -494,3 +494,35 @@ func parseRef(ref string) (string, int, error) {
 	}
 	return ref[:i], number, nil
 }
+
+// LookupTask resolves whichever way the caller named a task: an id, or the
+// short reference people and agents actually use, like "cairn-12". Both the
+// HTTP routes and the MCP tools accept either, so the rule for reading one
+// lives here rather than in each surface.
+func (s *Service) LookupTask(ctx context.Context, actor Actor, idOrRef string) (TaskDetail, error) {
+	if looksLikeID(idOrRef) {
+		return s.GetTask(ctx, actor, idOrRef)
+	}
+	return s.GetTaskByRef(ctx, actor, idOrRef)
+}
+
+// looksLikeID distinguishes a UUID from a task reference. Both contain dashes,
+// so the test is on shape: 8-4-4-4-12 hex digits.
+func looksLikeID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, c := range s {
+		switch i {
+		case 8, 13, 18, 23:
+			if c != '-' {
+				return false
+			}
+		default:
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
+}
