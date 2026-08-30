@@ -1,0 +1,11 @@
+.git
+.gitignore
+web/node_modules
+web/dist
+*.db
+*.db-wal
+*.db-shm
+/cairn
+docs
+Makefile
+README.md

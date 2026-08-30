@@ -1,0 +1,15 @@
+services:
+  cairn:
+    build: .
+    image: cairn:latest
+    container_name: cairn
+    restart: unless-stopped
+    # Published to loopback only. Caddy terminates TLS and proxies to it; the
+    # port is never reachable from outside the host.
+    ports:
+      - "127.0.0.1:8083:7777"
+    volumes:
+      - cairn-data:/data
+
+volumes:
+  cairn-data:
