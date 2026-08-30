@@ -210,6 +210,39 @@ only the human marks work done; leave the task in review,
 and make sure state.next_step says what they should check
 ```
 
+### Telling an agent when to use it
+
+Connecting the server teaches an agent *how* Cairn works: the rules arrive as
+server instructions on connect, and again in every tool description. What none
+of that says is *when* to reach for it — an agent working in some other
+repository will not think to check the board or leave a note before it stops
+unless you ask it to.
+
+That part belongs in the `CLAUDE.md` of each repository you track. Something
+like this is enough:
+
+```markdown
+## Issue tracking
+
+Work on this repo is tracked in Cairn, project `myproject`.
+
+- Before starting a task, `get_task` it and read the worklog. Someone has
+  probably already tried something; do not repeat their dead ends.
+- Claim work by moving it `queue -> active` before you begin, not after.
+- On anything long-running, `write_state` as you go. If you stop unexpectedly,
+  that note is the only thing that survives.
+- Before you stop, always leave the task somewhere honest:
+  - finished  -> `review`, with `next_step` saying what I should check
+  - stuck     -> `blocked`, with `blocked_on` saying exactly what you need
+  - Never leave a task in `active` when you are not working on it.
+- If you notice other work that needs doing, `create_task` it into backlog
+  rather than silently widening the task you were given.
+```
+
+The last two are the ones worth keeping. A task parked in `active` by an agent
+that stopped is a lie the board tells you every time you open it, and an agent
+that quietly expands its own scope is the reason the backlog exists.
+
 ---
 
 ## Development
