@@ -56,8 +56,15 @@ jobs:
             cp LICENSE README.md dist/
             if [ "$os" = windows ]; then
               (cd dist && zip -q "../$name.zip" "$bin" LICENSE README.md)
+              # A second copy without the version in the name. GitHub serves
+              # /releases/latest/download/<asset>, so an unversioned asset gives
+              # a URL that keeps working after the next release -- which is what
+              # lets the install command on the site be a fixed string that
+              # resolves the platform itself.
+              cp "$name.zip" "cairn_${os}_${arch}.zip"
             else
               tar -czf "$name.tar.gz" -C dist "$bin" LICENSE README.md
+              cp "$name.tar.gz" "cairn_${os}_${arch}.tar.gz"
             fi
             rm -f "dist/$bin"
           done
