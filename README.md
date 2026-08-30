@@ -97,6 +97,38 @@ can tell one of an agent's tokens from another. A token is shown once.
 
 ## Running it
 
+### Download a binary
+
+Grab the archive for your platform from the [latest release](https://github.com/alperkyoruk/cairn/releases/latest),
+unpack it, and run it. It is one self-contained file — the web interface is
+compiled into it, there is no runtime to install, and nothing else to deploy.
+
+```bash
+tar -xzf cairn_v0.1.0_darwin_arm64.tar.gz
+./cairn
+```
+
+Then open <http://127.0.0.1:7777> and choose a username and password.
+
+Binaries are published for macOS and Linux on both `amd64` and `arm64`, plus
+Windows on `amd64`. `checksums.txt` accompanies every release.
+
+### With Docker
+
+```bash
+docker run -d --name cairn \
+  -p 127.0.0.1:7777:7777 \
+  -v cairn-data:/data \
+  ghcr.io/alperkyoruk/cairn:latest
+```
+
+The image is built `FROM scratch` — no base image, no libc, no shell, nothing
+with a CVE feed — because the binary has no dynamic links. It runs as an
+unprivileged uid and keeps the database in `/data`.
+
+There is also a `compose.yaml` in the repository, which publishes to
+`127.0.0.1:8083` and expects a reverse proxy in front.
+
 ### From source
 
 ```bash
@@ -104,24 +136,13 @@ make build
 ./cairn
 ```
 
-Then open <http://127.0.0.1:7777> and choose a username and password.
+Needs Go 1.25+ and Node 24+. `make build` compiles the Vue app into `web/dist`
+and then embeds it in the Go binary.
 
-`make build` compiles the Vue app into `web/dist` and then embeds it in the Go
-binary. `go build` on its own produces a working API with no web interface; the
-binary says so on startup.
-
-### With Docker
-
-```bash
-docker compose up -d --build
-```
-
-The image builds from `scratch` — no base image, no libc, no shell — because
-`modernc.org/sqlite` is a pure-Go port and the binary has no dynamic links. The
-database lives in a named volume at `/data`.
-
-The compose file publishes to `127.0.0.1:8083`, expecting a reverse proxy in
-front. Change that line if you want it reachable directly.
+`go build` on its own produces a working API and MCP server with no web
+interface; the binary says so on startup. `go install` has the same limitation,
+because the frontend is built rather than committed — use a release binary or
+`make build` if you want the web interface.
 
 ### Flags
 

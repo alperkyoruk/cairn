@@ -115,7 +115,7 @@ type taskDetailOut struct {
 
 func (s *server) build() *mcp.Server {
 	srv := mcp.NewServer(
-		&mcp.Implementation{Name: "cairn", Version: Version},
+		&mcp.Implementation{Name: "cairn", Version: s.version},
 		&mcp.ServerOptions{Instructions: instructions},
 	)
 

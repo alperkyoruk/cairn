@@ -66,7 +66,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 
-	srv := httptest.NewServer(New(svc))
+	srv := httptest.NewServer(New(svc, "test"))
 	t.Cleanup(srv.Close)
 
 	return &harness{t: t, svc: svc, url: srv.URL, human: human, project: project.ID, ctx: ctx}

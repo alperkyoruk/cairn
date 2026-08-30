@@ -57,16 +57,18 @@ stop working: that tells the human work is in progress when it is not.
 Every task read includes can_move_to, which lists the moves available to you
 from where the task is now. Use it rather than guessing.`
 
-// Version is reported to MCP clients on connect.
-const Version = "0.1.0"
-
 type server struct {
-	svc *service.Service
+	svc     *service.Service
+	version string
 }
 
-// New returns the handler to mount at /mcp.
-func New(svc *service.Service) http.Handler {
-	s := &server{svc: svc}
+// New returns the handler to mount at /mcp. version is reported to clients on
+// connect, so an agent's logs say which build refused it.
+func New(svc *service.Service, version string) http.Handler {
+	if version == "" {
+		version = "dev"
+	}
+	s := &server{svc: svc, version: version}
 	built := s.build()
 
 	streamable := mcp.NewStreamableHTTPHandler(

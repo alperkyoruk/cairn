@@ -21,7 +21,12 @@ import (
 	"github.com/alperkyoruk/cairn/web"
 )
 
+// version is set at link time by the release build. A binary someone
+// downloaded needs to be able to say what it is.
+var version = "dev"
+
 func main() {
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	dbPath := flag.String("db", "cairn.db", "path to the Cairn database file")
 	addr := flag.String("addr", "127.0.0.1:7777",
 		"address to listen on; use :7777 to accept connections from other machines")
@@ -30,6 +35,11 @@ func main() {
 	reset := flag.Bool("reset-password", false,
 		"set a new password for the user and revoke every session they hold")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("cairn", version)
+		return
+	}
 
 	if err := run(*dbPath, *addr, *secureCookies, *reset); err != nil {
 		fmt.Fprintln(os.Stderr, "cairn:", err)
@@ -57,7 +67,7 @@ func serve(ctx context.Context, svc *service.Service, addr string, secureCookies
 	// The two surfaces are peers, not one nested inside the other: the browser
 	// and the agents reach the same service layer by different doors.
 	mux := http.NewServeMux()
-	mux.Handle("/mcp", mcpserver.New(svc))
+	mux.Handle("/mcp", mcpserver.New(svc, version))
 	mux.Handle("/", httpapi.New(svc, web.Handler(), httpapi.WithSecureCookies(secureCookies)))
 
 	srv := &http.Server{
