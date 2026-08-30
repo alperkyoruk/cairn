@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
     paths: ['site/**', '.github/workflows/pages.yml']
+  # A release changes the version the install command advertises, so the page
+  # has to be rebuilt when one is published, not only when the page is edited.
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -23,6 +27,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # The page carries one install command with a real filename in it, so the
+      # version cannot be hard-coded without going stale the next time anything
+      # ships. It is a placeholder in the source and filled in here from the
+      # latest release, and the build fails if either half is missing.
+      - name: Stamp the current release version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          if [ -z "$version" ]; then echo "no release to stamp"; exit 1; fi
+          grep -q '__VERSION__' site/index.html || { echo "no __VERSION__ placeholder left in the page"; exit 1; }
+          sed -i "s/__VERSION__/${version}/g" site/index.html
+          echo "stamped $version"
+          grep -o "cairn_${version}_[a-z0-9_]*\.tar\.gz" site/index.html | sort -u
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
