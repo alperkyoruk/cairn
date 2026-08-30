@@ -16,6 +16,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/alperkyoruk/cairn/internal/httpapi"
+	"github.com/alperkyoruk/cairn/internal/mcpserver"
 	"github.com/alperkyoruk/cairn/internal/service"
 	"github.com/alperkyoruk/cairn/web"
 )
@@ -53,9 +54,15 @@ func run(dbPath, addr string, secureCookies, reset bool) error {
 }
 
 func serve(ctx context.Context, svc *service.Service, addr string, secureCookies bool) error {
+	// The two surfaces are peers, not one nested inside the other: the browser
+	// and the agents reach the same service layer by different doors.
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", mcpserver.New(svc))
+	mux.Handle("/", httpapi.New(svc, web.Handler(), httpapi.WithSecureCookies(secureCookies)))
+
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.New(svc, web.Handler(), httpapi.WithSecureCookies(secureCookies)),
+		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -64,6 +71,7 @@ func serve(ctx context.Context, svc *service.Service, addr string, secureCookies
 		return err
 	}
 	fmt.Printf("cairn: listening on http://%s\n", addr)
+	fmt.Printf("cairn: agents connect to http://%s/mcp\n", addr)
 	if needsSetup {
 		fmt.Println("cairn: no user yet — open that address to choose a username and password")
 	}
