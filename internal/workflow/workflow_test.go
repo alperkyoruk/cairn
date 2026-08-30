@@ -103,6 +103,8 @@ func TestRefusalsPointSomewhere(t *testing.T) {
 	}
 }
 
+// The order is part of the contract: the first move offered is the one that
+// carries the work forward, and both surfaces present it first.
 func TestNextFor(t *testing.T) {
 	cases := []struct {
 		actor ActorType
@@ -113,9 +115,9 @@ func TestNextFor(t *testing.T) {
 		{Human, Backlog, "queue"},
 		{Agent, Queue, "active"},
 		{Human, Queue, "active, backlog"},
-		{Agent, Active, "blocked, review"},
+		{Agent, Active, "review, blocked"},
 		{Agent, Review, ""},
-		{Human, Review, "active, done"},
+		{Human, Review, "done, active"},
 		{Agent, Blocked, "active"},
 		{Agent, Done, ""},
 		{Human, Done, "queue"},

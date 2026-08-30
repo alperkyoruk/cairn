@@ -391,8 +391,10 @@ func TestReadsCarryTheLegalMoves(t *testing.T) {
 	f.claim(t)
 
 	forAgent, _ := f.svc.GetTask(f.ctx, f.agent, f.task)
-	if got := forAgent.CanMoveTo; len(got) != 2 || got[0] != workflow.Blocked || got[1] != workflow.Review {
-		t.Errorf("agent sees moves %v, want [blocked review]", got)
+	// Order matters: the move that carries the work forward comes first, so
+	// the interface can make it the primary button without re-deriving it.
+	if got := forAgent.CanMoveTo; len(got) != 2 || got[0] != workflow.Review || got[1] != workflow.Blocked {
+		t.Errorf("agent sees moves %v, want [review blocked]", got)
 	}
 	forHuman, _ := f.svc.GetTask(f.ctx, f.human, f.task)
 	if len(forHuman.CanMoveTo) != 2 {

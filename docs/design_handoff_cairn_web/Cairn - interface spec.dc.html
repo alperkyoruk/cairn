@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-8518afdb-cca3-4ba1-8f1e-6b0b25a28520/styles.css">
+<style>
+:root {
+  --cairn-blocked: oklch(0.72 0.105 70);
+  --cairn-edge: 2px;
+  --cairn-agent-glyph: inline-flex;
+  --cairn-agent-font: var(--font-body);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+body { margin: 0; -webkit-font-smoothing: antialiased; }
+a { color: var(--color-accent); text-decoration: none; }
+a:hover { color: var(--color-accent-300); }
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--color-bg);color:var(--color-text);padding:56px 40px 120px">
+<div style="max-width:1320px;margin:0 auto">
+
+<header style="display:flex;flex-direction:column;gap:var(--space-4);padding-bottom:var(--space-8);margin-bottom:56px;background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+  <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--color-accent)">Cairn · web interface</div>
+  <h1 style="font-size:38px;margin:0;max-width:22ch">A stack of stones for whoever picks it up next</h1>
+  <p style="margin:0;max-width:64ch;font-size:15px;color:var(--color-neutral-400);text-wrap:pretty">Design spec for the embedded Vue app: tokens, the status vocabulary, and every screen at desktop width. Dark only in this pass. No webfont, no icon library, no framework — the type is a system stack with Inter first if it is vendored, and the eleven icons on this page are inline SVG.</p>
+  <nav style="display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-6);font-family:var(--mono);font-size:12px;margin-top:var(--space-2)">
+    <a href="#tokens">01 tokens</a>
+    <a href="#status">02 status</a>
+    <a href="#task">03 task detail</a>
+    <a href="#board">04 board</a>
+    <a href="#project">05 project</a>
+    <a href="#newproject">05b new project</a>
+    <a href="#empty">06 empty states</a>
+    <a href="#time">07 relative time</a>
+    <a href="#agents">08 agents &amp; tokens</a>
+    <a href="#entry">09 login &amp; setup</a>
+    <a href="#open">10 open</a>
+  </nav>
+</header>
+
+<!-- ── 01 TOKENS ───────────────────────────────────────────── -->
+<section id="tokens" style="margin-bottom:96px">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">01</span>
+    <h2 style="font-size:27px;margin:0">Tokens</h2>
+  </div>
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <p style="margin:0 0 var(--space-8);max-width:66ch;font-size:14px;color:var(--color-neutral-400);text-wrap:pretty">Four groups do all the work: ground, ink, rules, roles. Everything on the following screens is one of these; nothing is a one-off value. The ink ramp has four steps because this interface leans on dimness rather than size for hierarchy — a done task and a stale timestamp both recede by losing luminance, not by shrinking.</p>
+  </sc-if>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-8) 48px;align-items:start">
+
+    <div style="display:flex;flex-direction:column;gap:var(--space-8)">
+      <div>
+        <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-4)">Ground</h6>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <div style="display:grid;grid-template-columns:44px 1fr auto;gap:var(--space-4);align-items:center;padding:var(--space-2) 0"><span style="height:26px;border-radius:var(--radius-sm);background:#161826;box-shadow:inset 0 0 0 1px var(--color-neutral-800)"></span><span style="font-family:var(--mono);font-size:12px">--bg</span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">#161826</span></div>
+          <div style="display:grid;grid-template-columns:44px 1fr auto;gap:var(--space-4);align-items:center;padding:var(--space-2) 0"><span style="height:26px;border-radius:var(--radius-sm);background:color-mix(in srgb,#232532 45%,#161826)"></span><span style="font-family:var(--mono);font-size:12px">--surface</span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">bg + 45% raised</span></div>
+          <div style="display:grid;grid-template-columns:44px 1fr auto;gap:var(--space-4);align-items:center;padding:var(--space-2) 0"><span style="height:26px;border-radius:var(--radius-sm);background:#232532"></span><span style="font-family:var(--mono);font-size:12px">--surface-raised</span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">#232532</span></div>
+        </div>
+      </div>
+
+      <div>
+        <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-4)">Ink</h6>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <div style="display:grid;grid-template-columns:44px 1fr auto;gap:var(--space-4);align-items:center;padding:var(--space-2) 0"><span style="height:26px;border-radius:var(--radius-sm);background:#e9e9ed"></span><span style="font-family:var(--mono);font-size:12px;color:#e9e9ed">--text</span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">titles, state, prose</span></div>
+          <div style="display:grid;grid-template-columns:44px 1fr auto;gap:var(--space-4);align-items:center;padding:var(--space-2) 0"><span style="height:26px;border-radius:var(--radius-sm);background:#b2b6ca"></span><span style="font-family:var(--mono);font-size:12px;color:#b2b6ca">--text-muted</span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">next step, outcomes</span></div>
+          <div style="display:grid;grid-template-columns:44px 1fr auto;gap:var(--space-4);align-items:center;padding:var(--space-2) 0"><span style="height:26px;border-radius:var(--radius-sm);background:#75798c"></span><span style="font-family:var(--mono);font-size:12px;color:#75798c">--text-dim</span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">actors, times, labels</span></div>
+          <div style="display:grid;grid-template-columns:44px 1fr auto;gap:var(--space-4);align-items:center;padding:var(--space-2) 0"><span style="height:26px;border-radius:var(--radius-sm);background:#595d6c"></span><span style="font-family:var(--mono);font-size:12px;color:#595d6c">--text-faint</span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">empties, done rows</span></div>
+        </div>
+      </div>
+
+      <div>
+        <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-4)">Roles</h6>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <div style="display:grid;grid-template-columns:44px 1fr auto;gap:var(--space-4);align-items:center;padding:var(--space-2) 0"><span style="height:26px;border-radius:var(--radius-sm);background:#9184d9"></span><span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">--accent</span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">attention &amp; motion</span></div>
+          <div style="display:grid;grid-template-columns:44px 1fr auto;gap:var(--space-4);align-items:center;padding:var(--space-2) 0"><span style="height:26px;border-radius:var(--radius-sm);background:var(--cairn-blocked)"></span><span style="font-family:var(--mono);font-size:12px;color:var(--cairn-blocked)">--blocked</span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">the one other hue</span></div>
+          <div style="display:grid;grid-template-columns:44px 1fr auto;gap:var(--space-4);align-items:center;padding:var(--space-2) 0"><span style="height:26px;border-radius:var(--radius-sm);background:linear-gradient(to right,transparent,color-mix(in srgb,#e9e9ed 8%,transparent) 20%,color-mix(in srgb,#e9e9ed 8%,transparent) 80%,transparent);box-shadow:inset 0 0 0 1px var(--color-neutral-900)"></span><span style="font-family:var(--mono);font-size:12px">--rule</span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">fades at both ends</span></div>
+        </div>
+        <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+        <p style="margin:var(--space-4) 0 0;font-size:13px;color:var(--color-neutral-500);max-width:52ch;text-wrap:pretty">Nocturne is a mono palette, so <span style="font-family:var(--mono)">--blocked</span> is the one hue added to it: an amber at the accent's own lightness and a lower chroma, so it never outshouts the accent. It is used as a mark and a hairline, never as a fill.</p>
+        </sc-if>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:var(--space-8)">
+      <div>
+        <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-4)">Type scale</h6>
+        <div style="display:flex;flex-direction:column;gap:var(--space-3)">
+          <div style="display:flex;align-items:baseline;gap:var(--space-6)"><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600);width:96px;flex:none">--t-xl 25</span><span style="font-size:25px;letter-spacing:-0.015em">Migrate the old invoice importer</span></div>
+          <div style="display:flex;align-items:baseline;gap:var(--space-6)"><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600);width:96px;flex:none">--t-lg 19</span><span style="font-size:19px">Worklog</span></div>
+          <div style="display:flex;align-items:baseline;gap:var(--space-6)"><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600);width:96px;flex:none">--t-md 15</span><span style="font-size:15px">Task body and the three state fields</span></div>
+          <div style="display:flex;align-items:baseline;gap:var(--space-6)"><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600);width:96px;flex:none">--t-base 13</span><span style="font-size:13px">Board rows, worklog prose — the working size</span></div>
+          <div style="display:flex;align-items:baseline;gap:var(--space-6)"><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600);width:96px;flex:none">--t-sm 12</span><span style="font-size:12px">Status labels, actor names, buttons</span></div>
+          <div style="display:flex;align-items:baseline;gap:var(--space-6)"><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600);width:96px;flex:none">--t-xs 11</span><span style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase">Column heads and field keys</span></div>
+        </div>
+      </div>
+
+      <div>
+        <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-4)">Space &amp; radii</h6>
+        <div style="display:flex;align-items:flex-end;gap:var(--space-4)">
+          <span style="width:3px;height:3px;background:var(--color-accent-700)"></span>
+          <span style="width:6px;height:6px;background:var(--color-accent-700)"></span>
+          <span style="width:8px;height:8px;background:var(--color-accent-700)"></span>
+          <span style="width:11px;height:11px;background:var(--color-accent-700)"></span>
+          <span style="width:17px;height:17px;background:var(--color-accent-700)"></span>
+          <span style="width:22px;height:22px;background:var(--color-accent-700)"></span>
+          <span style="width:34px;height:34px;background:var(--color-accent-700)"></span>
+        </div>
+        <div style="display:flex;gap:var(--space-4);font-family:var(--mono);font-size:11px;color:var(--color-neutral-600);margin-top:var(--space-2)">
+          <span style="width:3px">3</span><span style="width:6px">6</span><span style="width:8px">8</span><span style="width:11px">11</span><span style="width:17px">17</span><span style="width:22px">22</span><span style="width:34px">34</span>
+        </div>
+        <div style="display:flex;gap:var(--space-4);margin-top:var(--space-6)">
+          <div style="display:flex;flex-direction:column;gap:var(--space-1);align-items:center"><span style="width:52px;height:34px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--color-neutral-700)"></span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">4 tag</span></div>
+          <div style="display:flex;flex-direction:column;gap:var(--space-1);align-items:center"><span style="width:52px;height:34px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--color-neutral-700)"></span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">8 control</span></div>
+          <div style="display:flex;flex-direction:column;gap:var(--space-1);align-items:center"><span style="width:52px;height:34px;border-radius:14px;box-shadow:inset 0 0 0 1px var(--color-neutral-700)"></span><span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">14 panel</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:48px">
+    <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-4)">web/src/styles/tokens.css</h6>
+    <pre style="margin:0;padding:var(--space-8);border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--color-neutral-300);overflow-x:auto"><span style="color:var(--color-neutral-600)">/* cairn tokens. dark is the authored theme; light overrides
+   the ground and ink groups only — the rest is hue-stable. */</span>
+:root {
+  color-scheme: dark;
+
+  <span style="color:var(--color-neutral-600)">/* ground */</span>
+  --bg:             #161826;
+  --surface:        color-mix(in srgb, #232532 45%, #161826);
+  --surface-raised: #232532;
+
+  <span style="color:var(--color-neutral-600)">/* ink */</span>
+  --text:           #e9e9ed;
+  --text-muted:     #b2b6ca;
+  --text-dim:       #75798c;
+  --text-faint:     #595d6c;
+
+  <span style="color:var(--color-neutral-600)">/* rules — fade to transparent 48px from each end */</span>
+  --rule:           color-mix(in srgb, #e9e9ed 8%, transparent);
+  --rule-strong:    color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  <span style="color:var(--color-neutral-600)">/* roles */</span>
+  --accent:         #9184d9;
+  --accent-tint:    color-mix(in srgb, #9184d9 14%, transparent);
+  --accent-deep:    #423a6a;
+  --blocked:        oklch(0.72 0.105 70);
+  --blocked-tint:   oklch(0.72 0.105 70 / 0.13);
+
+  <span style="color:var(--color-neutral-600)">/* type — vendor Inter or fall through to the system stack */</span>
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --t-xs: 11px;  --t-sm: 12px;  --t-base: 13px;
+  --t-md: 15px;  --t-lg: 19px;  --t-xl: 25px;
+
+  <span style="color:var(--color-neutral-600)">/* space (0.7x density) */</span>
+  --s-1: 3px;  --s-2: 6px;  --s-3: 8px;  --s-4: 11px;
+  --s-6: 17px; --s-8: 22px; --s-12: 34px;
+
+  <span style="color:var(--color-neutral-600)">/* radii + elevation: an edge, then ambient darkness */</span>
+  --r-sm: 4px; --r-md: 8px; --r-lg: 14px;
+  --e-1: 0 0 0 1px #3f424d;
+  --e-2: 0 0 0 1px #595d6c, 0 6px 18px rgb(0 0 0 / .55);
+}
+
+<span style="color:var(--color-neutral-600)">/* one transition in the whole app, for status changes only */</span>
+:root { --motion: 120ms ease-out; }
+@media (prefers-reduced-motion: reduce) { :root { --motion: 0s; } }</pre>
+  </div>
+</section>
+
+<!-- ── 02 STATUS ───────────────────────────────────────────── -->
+<section id="status" style="margin-bottom:96px">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">02</span>
+    <h2 style="font-size:27px;margin:0">Status</h2>
+  </div>
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <p style="margin:0 0 var(--space-8);max-width:66ch;font-size:14px;color:var(--color-neutral-400);text-wrap:pretty">Shape carries the position, luminance carries the demand. A circle means the task is on the pipeline; a check means it has left it; a diamond means it has fallen off the side. Only two statuses are allowed to be bright — <span style="color:var(--color-accent)">review</span>, because it is waiting on the person reading, and <span style="color:var(--cairn-blocked)">blocked</span>, because nothing will happen until they act. backlog and done are the dimmest things on any screen.</p>
+  </sc-if>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:48px;align-items:start">
+    <div style="padding:var(--space-8);border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm)">
+      <div style="display:flex;flex-direction:column;gap:var(--space-6)">
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-500)"><span style="width:9px;height:9px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-neutral-700)"></span>backlog</span>
+          <span style="font-size:13px;color:var(--color-neutral-500)">Recorded, not chosen. Hollow ring, dimmest ink.</span>
+        </div>
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-300)"><span style="width:9px;height:9px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-neutral-500)"></span>queue</span>
+          <span style="font-size:13px;color:var(--color-neutral-500)">Chosen by the human. Same ring, brighter.</span>
+        </div>
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-200)"><span style="width:9px;height:9px;flex:none;border-radius:50%;background:var(--color-accent-500)"></span>active</span>
+          <span style="font-size:13px;color:var(--color-neutral-500)">Filled — an agent is on it. Accent, no glow.</span>
+        </div>
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-accent)"><span style="width:9px;height:9px;flex:none;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--color-accent) 22%,transparent)"></span>review</span>
+          <span style="font-size:13px;color:var(--color-neutral-400)">Waiting on you. The glow is the only one in the app.</span>
+        </div>
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-600)"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="flex:none"><path d="M2 6.4 4.6 9 10 3.2"></path></svg>done</span>
+          <span style="font-size:13px;color:var(--color-neutral-500)">Off the pipeline. A check, and it recedes.</span>
+        </div>
+        <div style="display:grid;grid-template-columns:150px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--cairn-blocked)"><span style="width:8px;height:8px;flex:none;background:var(--cairn-blocked);transform:rotate(45deg)"></span>blocked</span>
+          <span style="font-size:13px;color:var(--color-neutral-400)">Off the side. Different shape, different hue.</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:var(--space-8) var(--space-8) 30px;border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm)">
+      <h6 style="color:var(--color-neutral-500);margin-bottom:26px">The machine, drawn honestly</h6>
+      <div style="position:relative;padding-bottom:58px">
+        <div style="display:flex;align-items:center;gap:0">
+          <span style="width:9px;height:9px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-neutral-700)"></span>
+          <span style="flex:1;height:1px;background:var(--color-neutral-800)"></span>
+          <span style="width:9px;height:9px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-neutral-500)"></span>
+          <span style="flex:1;height:1px;background:var(--color-neutral-800)"></span>
+          <span style="width:9px;height:9px;flex:none;border-radius:50%;background:var(--color-accent-500)"></span>
+          <span style="flex:1;height:1px;background:var(--color-neutral-800)"></span>
+          <span style="width:9px;height:9px;flex:none;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--color-accent) 22%,transparent)"></span>
+          <span style="flex:1;height:1px;background:var(--color-neutral-800)"></span>
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="var(--color-neutral-600)" stroke-width="1.8" stroke-linecap="round" style="flex:none"><path d="M2 6.4 4.6 9 10 3.2"></path></svg>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:var(--space-3);font-family:var(--mono);font-size:11px;color:var(--color-neutral-600)">
+          <span>backlog</span><span>queue</span><span style="color:var(--color-neutral-400)">active</span><span style="color:var(--color-accent)">review</span><span>done</span>
+        </div>
+        <div style="position:absolute;left:calc(50% - 4px);top:9px;width:1px;height:34px;background:linear-gradient(to bottom,var(--color-neutral-800),var(--cairn-blocked))"></div>
+        <div style="position:absolute;left:calc(50% - 9px);top:43px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--cairn-blocked)"><span style="width:8px;height:8px;flex:none;background:var(--cairn-blocked);transform:rotate(45deg)"></span><span style="font-family:var(--mono);font-size:11px">blocked</span></div>
+      </div>
+      <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+      <p style="margin:0;font-size:13px;color:var(--color-neutral-500);text-wrap:pretty">Never six equal segments. blocked hangs off active on a stem and returns up the same stem. The two human-only transitions — <span style="font-family:var(--mono);font-size:12px">backlog→queue</span> and <span style="font-family:var(--mono);font-size:12px">review→done</span> — are the two segments where the pipeline stops on its own.</p>
+      </sc-if>
+    </div>
+  </div>
+</section>
+
+<!-- ── 03 TASK DETAIL ──────────────────────────────────────── -->
+<section id="task" style="margin-bottom:96px">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">03</span>
+    <h2 style="font-size:27px;margin:0">Task detail</h2>
+  </div>
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <p style="margin:0 0 var(--space-8);max-width:70ch;font-size:14px;color:var(--color-neutral-400);text-wrap:pretty">State and worklog are given opposite geometry so they can never be misread as two lists of the same thing. <b style="font-weight:500;color:var(--color-text)">State is a panel</b>: enclosed, raised, three named fields, one byline, no chronology. <b style="font-weight:500;color:var(--color-text)">Worklog is a rail</b>: unenclosed, flush on the page ground, a stack of dated prose running down a vertical line. A panel reads as a record with slots; a rail reads as a history. Field keys are set in mono at 11px, which also says these are three fields of one row, not three sentences somebody wrote.</p>
+  </sc-if>
+
+  <div style="border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);overflow:hidden">
+    <div class="nav" style="padding:var(--space-3) var(--space-6);background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+      <span class="nav-brand" style="display:inline-flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 16 16" fill="var(--color-accent)"><path d="M8 1.4 10.4 4H5.6L8 1.4Z"></path><path d="M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z"></path><path d="M2.2 9h11.6l1.6 3.4H.6L2.2 9Z"></path></svg>cairn</span>
+      <a href="#board" aria-current="page">Board</a>
+      <a href="#agents">Agents</a>
+      <button class="btn btn-icon btn-ghost" aria-label="Switch to light" style="color:var(--color-neutral-500)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13 9.6A5.6 5.6 0 0 1 6.4 3 5.6 5.6 0 1 0 13 9.6Z"></path></svg></button>
+      <span style="font-size:12.5px;color:var(--color-neutral-500)">alper</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:0">
+      <div style="padding:var(--space-8) var(--space-8) 40px">
+
+        <div style="display:flex;align-items:center;gap:var(--space-2);font-family:var(--mono);font-size:12px;color:var(--color-neutral-600);margin-bottom:var(--space-6)">
+          <a href="#project" style="color:var(--color-neutral-500)">binbirnet</a><span>/</span><span style="color:var(--color-neutral-400)">bnn-4</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-3)">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--cairn-blocked)"><span style="width:8px;height:8px;flex:none;background:var(--cairn-blocked);transform:rotate(45deg)"></span>blocked</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-700)">since 22 Aug 10:31</span>
+        </div>
+        <h3 style="font-size:25px;margin:0 0 var(--space-4);max-width:32ch">Migrate the old invoice importer</h3>
+        <p style="margin:0 0 var(--space-8);max-width:70ch;font-size:15px;color:var(--color-neutral-300);text-wrap:pretty">The 2019-era importer is positional and silently mismaps anything newer. Replace it with a name-based mapper that handles every export format we still have on disk, and keep the row counts identical to the old one where the formats overlap.</p>
+
+        <!-- STATE PANEL -->
+        <div style="border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-sm),inset 2px 0 0 var(--cairn-blocked);padding:var(--space-6) var(--space-8) var(--space-8);margin-bottom:40px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-6);margin-bottom:var(--space-6)">
+            <h6 style="margin:0;color:var(--color-neutral-400)">State</h6>
+            <span style="font-size:11.5px;color:var(--color-neutral-600);font-family:var(--mono)">one record · overwritten in place</span>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:var(--space-6)">
+            <div style="padding:var(--space-4) var(--space-6);border-radius:var(--radius-md);background:var(--cairn-blocked-tint,oklch(0.72 0.105 70 / 0.13))">
+              <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.06em;color:var(--cairn-blocked);margin-bottom:var(--space-2)">blocked_on</div>
+              <p style="margin:0;font-size:16px;line-height:1.5;color:var(--color-text);max-width:64ch;text-wrap:pretty">Need read access to the archive bucket — the 2022 exports are not in the repo.</p>
+            </div>
+
+            <div>
+              <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.06em;color:var(--color-neutral-500);margin-bottom:var(--space-2)">where_i_left_off</div>
+              <p style="margin:0;font-size:15px;line-height:1.55;color:var(--color-neutral-200);max-width:70ch;text-wrap:pretty">The importer parses the 2019 format but chokes on the 2021 header row, which added a currency column in the middle rather than at the end. Rewrote the column mapping to be name-based instead of positional.</p>
+            </div>
+
+            <div>
+              <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.06em;color:var(--color-neutral-500);margin-bottom:var(--space-2)">next_step</div>
+              <p style="margin:0;font-size:15px;line-height:1.55;color:var(--color-neutral-200);max-width:70ch;text-wrap:pretty">Get a sample file from the 2022 exports and confirm the header names did not change again before finishing the mapper.</p>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:var(--space-2);font-size:12px;color:var(--color-neutral-600);padding-top:var(--space-2)">
+              <span>written by</span>
+              <span style="display:inline-flex;align-items:center;gap:5px;color:var(--color-neutral-400)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span>
+              <span>·</span><span title="22 Aug 2026 10:31">1d ago</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- WORKLOG -->
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-6);margin-bottom:var(--space-6)">
+          <h4 style="font-size:19px;margin:0">Worklog</h4>
+          <span style="font-size:11.5px;font-family:var(--mono);color:var(--color-neutral-600)">28 entries · append-only</span>
+        </div>
+
+        <div style="padding-left:var(--space-3)">
+          <div style="background:linear-gradient(to bottom,transparent,var(--color-divider) 20px,var(--color-divider) calc(100% - 20px),transparent) no-repeat 5px 0 / 1px 100%">
+
+            <button style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-6);align-items:center;width:100%;text-align:left;background:transparent;border:0;padding:var(--space-2) 0 var(--space-6);cursor:pointer;font:inherit;color:var(--color-neutral-500)" style-hover="color:var(--color-accent)">
+              <span style="width:11px;height:11px;border-radius:50%;background:var(--color-bg);box-shadow:inset 0 0 0 1px var(--color-neutral-700)"></span>
+              <span style="display:inline-flex;align-items:center;gap:var(--space-3);font-family:var(--mono);font-size:12px;color:var(--color-neutral-500)">
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 4.5 6 8l3.5-3.5"></path></svg>
+                23 earlier entries · 4 – 19 Aug
+              </span>
+            </button>
+
+            <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-6);padding-bottom:var(--space-8)">
+              <span style="width:5px;height:5px;border-radius:50%;background:var(--color-accent-500);margin:6px 0 0 3px"></span>
+              <div>
+                <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-3)">
+                  <span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-300)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span>
+                  <span style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--color-neutral-500);padding:2px 8px;border-radius:var(--radius-sm);background:color-mix(in srgb,var(--color-text) 6%,transparent)">queue<span style="color:var(--color-neutral-600)">→</span><span style="color:var(--color-accent-300)">active</span></span>
+                  <span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-700);margin-left:auto">20 Aug 09:12</span>
+                </div>
+                <p style="margin:0 0 var(--space-2);font-size:13.5px;line-height:1.55;color:var(--color-neutral-300);max-width:76ch;text-wrap:pretty">Read the 2019 importer end to end and wrote a fixture from the sample file in testdata.</p>
+                <p style="margin:0;font-size:13.5px;line-height:1.55;color:var(--color-neutral-500);max-width:76ch;text-wrap:pretty">Fixture parses. The column mapping is positional, which is going to break on any header change.</p>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-6);padding-bottom:var(--space-8)">
+              <span style="width:5px;height:5px;border-radius:50%;background:var(--color-neutral-700);margin:6px 0 0 3px"></span>
+              <div>
+                <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-3)">
+                  <span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-300)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span>
+                  <span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-700);margin-left:auto">20 Aug 11:40</span>
+                </div>
+                <p style="margin:0 0 var(--space-2);font-size:13.5px;line-height:1.55;color:var(--color-neutral-300);max-width:76ch;text-wrap:pretty">Rewrote the column mapping to look up by header name instead of index.</p>
+                <p style="margin:0;font-size:13.5px;line-height:1.55;color:var(--color-neutral-500);max-width:76ch;text-wrap:pretty">2019 and 2021 both parse. Removed the positional path entirely rather than keeping both.</p>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-6);padding-bottom:var(--space-8)">
+              <span style="width:5px;height:5px;border-radius:50%;background:var(--color-neutral-700);margin:6px 0 0 3px"></span>
+              <div>
+                <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-3)">
+                  <span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-300)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span>
+                  <span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-700);margin-left:auto">21 Aug 16:05</span>
+                </div>
+                <p style="margin:0 0 var(--space-2);font-size:13.5px;line-height:1.55;color:var(--color-neutral-300);max-width:76ch;text-wrap:pretty">Ran the mapper against every file in testdata and diffed row counts against the old importer.</p>
+                <p style="margin:0;font-size:13.5px;line-height:1.55;color:var(--color-neutral-500);max-width:76ch;text-wrap:pretty">Identical for 2019, 41 rows short for 2021 — all of them rows where the currency column is blank.</p>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-6);padding-bottom:var(--space-8)">
+              <span style="width:5px;height:5px;border-radius:50%;background:var(--color-neutral-700);margin:6px 0 0 3px"></span>
+              <div>
+                <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-3)">
+                  <span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-300)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span>
+                  <span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-700);margin-left:auto">21 Aug 17:22</span>
+                </div>
+                <p style="margin:0 0 var(--space-2);font-size:13.5px;line-height:1.55;color:var(--color-neutral-300);max-width:76ch;text-wrap:pretty">Treated a blank currency as the account default instead of skipping the row.</p>
+                <p style="margin:0;font-size:13.5px;line-height:1.55;color:var(--color-neutral-500);max-width:76ch;text-wrap:pretty">Row counts match. Needs confirming against a real 2022 export before it can be called done.</p>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:11px 1fr;gap:var(--space-6)">
+              <span style="width:7px;height:7px;background:var(--cairn-blocked);transform:rotate(45deg);margin:6px 0 0 2px"></span>
+              <div>
+                <div style="display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-3)">
+                  <span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-300)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span>
+                  <span style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--color-neutral-500);padding:2px 8px;border-radius:var(--radius-sm);background:var(--cairn-blocked-tint,oklch(0.72 0.105 70 / 0.13))">active<span style="color:var(--color-neutral-600)">→</span><span style="color:var(--cairn-blocked)">blocked</span></span>
+                  <span style="font-family:var(--mono);font-size:11px;color:var(--color-neutral-700);margin-left:auto">22 Aug 10:31</span>
+                </div>
+                <p style="margin:0 0 var(--space-2);font-size:13.5px;line-height:1.55;color:var(--color-neutral-300);max-width:76ch;text-wrap:pretty">Looked for the 2022 exports in the repo and in the fixtures directory.</p>
+                <p style="margin:0;font-size:13.5px;line-height:1.55;color:var(--color-neutral-500);max-width:76ch;text-wrap:pretty">Not there, and not in any branch. They are in the archive bucket, which this machine has no credentials for.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTIONS RAIL -->
+      <aside style="padding:var(--space-8) var(--space-8) var(--space-8) 0;display:flex;flex-direction:column;gap:var(--space-8)">
+        <div>
+          <h6 style="color:var(--color-neutral-400);margin-bottom:var(--space-4)">Available now</h6>
+          <div style="display:flex;flex-direction:column;gap:var(--space-2)">
+            <button class="btn btn-primary btn-block" style="justify-content:flex-start;margin-top:0">Unblock — back to active</button>
+            <button class="btn btn-secondary btn-block" style="justify-content:flex-start;margin-top:0">Send to backlog</button>
+          </div>
+          <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+          <p style="margin:var(--space-4) 0 0;font-size:12px;color:var(--color-neutral-600);text-wrap:pretty">Two buttons because the API returned two legal moves. Nothing is drawn disabled.</p>
+          </sc-if>
+        </div>
+
+        <div style="background:linear-gradient(to right,transparent,var(--color-divider) 20px,var(--color-divider) calc(100% - 20px),transparent) no-repeat top / 100% 1px;padding-top:var(--space-8)">
+          <h6 style="color:var(--color-neutral-400);margin-bottom:var(--space-4)">This task</h6>
+          <dl style="margin:0;display:grid;grid-template-columns:auto 1fr;gap:var(--space-3) var(--space-6);font-size:12.5px">
+            <dt style="color:var(--color-neutral-600)">reference</dt><dd style="margin:0;font-family:var(--mono);color:var(--color-neutral-300)">bnn-4</dd>
+            <dt style="color:var(--color-neutral-600)">project</dt><dd style="margin:0"><a href="#project">binbirnet</a></dd>
+            <dt style="color:var(--color-neutral-600)">created</dt><dd style="margin:0;color:var(--color-neutral-400)" title="4 Aug 2026 08:20">26d ago</dd>
+            <dt style="color:var(--color-neutral-600)">worklog</dt><dd style="margin:0;color:var(--color-neutral-400)">28 entries</dd>
+          </dl>
+        </div>
+
+        <div style="background:linear-gradient(to right,transparent,var(--color-divider) 20px,var(--color-divider) calc(100% - 20px),transparent) no-repeat top / 100% 1px;padding-top:var(--space-8);display:flex;flex-direction:column;gap:var(--space-2);align-items:flex-start">
+          <button class="btn btn-ghost" style="color:var(--color-neutral-400)">Edit title &amp; body</button>
+          <button class="btn btn-ghost" style="color:var(--color-neutral-400)">Delete task</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- actions per status + delete dialog -->
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:48px;margin-top:48px;align-items:start">
+    <div>
+      <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-6)">Legal moves, per status — driven by the API, not the screen</h6>
+      <div style="display:flex;flex-direction:column;gap:var(--space-4)">
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-500)"><span style="width:9px;height:9px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-neutral-700)"></span>backlog</span>
+          <div style="display:flex;gap:var(--space-2);flex-wrap:wrap"><button class="btn btn-primary">Queue it</button><span style="font-size:11.5px;color:var(--color-neutral-700);align-self:center;font-family:var(--mono)">human only</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-300)"><span style="width:9px;height:9px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-neutral-500)"></span>queue</span>
+          <div style="display:flex;gap:var(--space-2);flex-wrap:wrap"><button class="btn btn-primary">Start work</button><button class="btn btn-secondary">Back to backlog</button></div>
+        </div>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-200)"><span style="width:9px;height:9px;flex:none;border-radius:50%;background:var(--color-accent-500)"></span>active</span>
+          <div style="display:flex;gap:var(--space-2);flex-wrap:wrap"><button class="btn btn-primary">Send to review</button><button class="btn btn-secondary">Mark blocked</button></div>
+        </div>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-accent)"><span style="width:9px;height:9px;flex:none;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--color-accent) 22%,transparent)"></span>review</span>
+          <div style="display:flex;gap:var(--space-2);flex-wrap:wrap"><button class="btn btn-primary">Mark done</button><button class="btn btn-secondary">Send back to active</button><span style="font-size:11.5px;color:var(--color-neutral-700);align-self:center;font-family:var(--mono)">human only</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--cairn-blocked)"><span style="width:8px;height:8px;flex:none;background:var(--cairn-blocked);transform:rotate(45deg)"></span>blocked</span>
+          <div style="display:flex;gap:var(--space-2);flex-wrap:wrap"><button class="btn btn-primary">Unblock — back to active</button><button class="btn btn-secondary">Send to backlog</button></div>
+        </div>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:var(--space-6);align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-600)"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="flex:none"><path d="M2 6.4 4.6 9 10 3.2"></path></svg>done</span>
+          <div style="display:flex;gap:var(--space-2);flex-wrap:wrap"><button class="btn btn-secondary">Reopen to active</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-6)">Delete says what it takes with it</h6>
+      <div class="dialog elev-lg" style="width:100%">
+        <h4 class="dialog-title" style="margin:0">Delete bnn-4?</h4>
+        <div class="dialog-body" style="font-size:13.5px;color:var(--color-neutral-300);line-height:1.55">
+          <p style="margin:0 0 var(--space-3);text-wrap:pretty">This removes the task, its state, and <b style="font-weight:500;color:var(--color-text)">all 28 worklog entries</b>. The worklog is append-only everywhere else in Cairn; this is the only way it is ever destroyed, and it cannot be undone.</p>
+          <p style="margin:0;color:var(--color-neutral-500);font-size:12.5px">Type <span style="font-family:var(--mono);color:var(--color-neutral-300)">bnn-4</span> to confirm.</p>
+        </div>
+        <input class="input" placeholder="bnn-4" aria-label="Confirm reference" style="font-family:var(--mono)">
+        <div class="dialog-actions" style="display:flex;gap:var(--space-2);justify-content:flex-end">
+          <button class="btn btn-secondary">Cancel</button>
+          <button class="btn btn-primary" disabled>Delete permanently</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 04 BOARD ────────────────────────────────────────────── -->
+<section id="board" style="margin-bottom:96px">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">04</span>
+    <h2 style="font-size:27px;margin:0">Board</h2>
+  </div>
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <p style="margin:0 0 var(--space-8);max-width:70ch;font-size:14px;color:var(--color-neutral-400);text-wrap:pretty">Read-only, one sort, no filters. Rows are 30px tall so a full board fits one screen without scrolling — the five-second glance is the whole use case. Review rows carry a 2px accent mark at the left edge and a one-line count in the header (<span style="color:var(--color-text)">1 waiting on you</span>) — a readout, not a control: there is nothing to click, nothing to toggle, and the mark survives peripheral vision at the far edge of a wide monitor.</p>
+  </sc-if>
+
+  <div style="border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);overflow:hidden">
+    <div class="nav" style="padding:var(--space-3) var(--space-6);background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+      <span class="nav-brand" style="display:inline-flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 16 16" fill="var(--color-accent)"><path d="M8 1.4 10.4 4H5.6L8 1.4Z"></path><path d="M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z"></path><path d="M2.2 9h11.6l1.6 3.4H.6L2.2 9Z"></path></svg>cairn</span>
+      <a href="#board" aria-current="page">Board</a>
+      <a href="#agents">Agents</a>
+      <button class="btn btn-icon btn-ghost" aria-label="Switch to light" style="color:var(--color-neutral-500)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13 9.6A5.6 5.6 0 0 1 6.4 3 5.6 5.6 0 1 0 13 9.6Z"></path></svg></button>
+      <span style="font-size:12.5px;color:var(--color-neutral-500)">alper</span>
+    </div>
+
+    <div style="padding:var(--space-6) var(--space-6) var(--space-8)">
+      <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-4);padding-left:14px">
+        <span style="font-size:12.5px;color:var(--color-neutral-500)">8 tasks</span>
+        <span style="color:var(--color-neutral-700)">·</span>
+        <sc-if value="{{ showCount }}" hint-placeholder-val="{{ true }}">
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-accent)"><span style="width:7px;height:7px;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--color-accent) 22%,transparent)"></span>1 waiting on you</span>
+        </sc-if>
+        <span style="font-size:12px;color:var(--color-neutral-700);margin-left:auto;font-family:var(--mono)">most recently touched first</span>
+        <button class="btn btn-ghost" style="color:var(--color-neutral-400);margin-left:var(--space-4)">New project</button>
+      </div>
+
+      <table class="table" style="table-layout:fixed">
+        <thead>
+          <tr>
+            <th style="width:14px"></th><th style="width:110px">project</th><th>task</th><th style="width:118px">status</th><th style="width:330px">next step</th><th style="width:104px">last updated by</th><th style="width:56px;text-align:right">ago</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="box-shadow:inset var(--cairn-edge) 0 0 var(--color-accent)"></td>
+            <td><a href="#project" style="font-size:12.5px;color:var(--color-neutral-400)">cairn</a></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-text)">Embed the frontend into the binary</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-accent)"><span style="width:9px;height:9px;flex:none;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--color-accent) 22%,transparent)"></span>review</span></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--color-neutral-300)">check the binary serves / with no dist on disk</td>
+            <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-400)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">claude</span></span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-400)" title="30 Aug 2026 11:52">4m</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td><a href="#project" style="font-size:12.5px;color:var(--color-neutral-400)">cairn</a></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-text)">MCP server at /mcp over streamable HTTP</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-200)"><span style="width:9px;height:9px;flex:none;border-radius:50%;background:var(--color-accent-500)"></span>active</span></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--color-neutral-300)">wire the transition tool to the service layer</td>
+            <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-400)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">claude</span></span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-400)" title="30 Aug 2026 11:34">22m</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td><a href="#project" style="font-size:12.5px;color:var(--color-neutral-500)">cairn</a></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-neutral-400)">Decide SQLite vs Postgres</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-600)"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="flex:none"><path d="M2 6.4 4.6 9 10 3.2"></path></svg>done</span></td>
+            <td style="font-size:13px;color:var(--color-neutral-700)">—</td>
+            <td><span style="font-size:12.5px;color:var(--color-neutral-500)">alper</span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-500)" title="30 Aug 2026 09:48">2h</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td><a href="#project" style="font-size:12.5px;color:var(--color-neutral-400)">binbirnet</a></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-text)">Migrate the old invoice importer</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--cairn-blocked)"><span style="width:8px;height:8px;flex:none;background:var(--cairn-blocked);transform:rotate(45deg)"></span>blocked</span></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:color-mix(in srgb,var(--cairn-blocked) 76%,var(--color-neutral-600))" title="blocked_on — Need read access to the archive bucket — the 2022 exports are not in the repo.">Need read access to the archive bucket — the 2022 exports are not in the repo.</td>
+            <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-400)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-400)" title="29 Aug 2026 10:31">1d</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td><a href="#project" style="font-size:12.5px;color:var(--color-neutral-400)">binbirnet</a></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-text)">Nightly export job silently drops rows when the SFTP handshake times out</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-200)"><span style="width:9px;height:9px;flex:none;border-radius:50%;background:var(--color-accent-500)"></span>active</span></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--color-neutral-300)" title="retry with backoff and log the handshake failure instead of swallowing it, then confirm against last week&#39;s dropped batch">retry with backoff and log the handshake failure instead of swallowing it, then confirm against last week&#39;s dropped batch</td>
+            <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-400)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-400)" title="24 Aug 2026 20:10">6d</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td><a href="#project" style="font-size:12.5px;color:var(--color-neutral-500)">cairn</a></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-neutral-300)">--reset-password should revoke sessions</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-500)"><span style="width:9px;height:9px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-neutral-700)"></span>backlog</span></td>
+            <td style="font-size:12px;color:var(--color-neutral-700)">no state yet</td>
+            <td><span style="font-size:12.5px;color:var(--color-neutral-700)">—</span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-500)" title="27 Aug 2026 14:02">3d</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td><a href="#project" style="font-size:12.5px;color:var(--color-neutral-400)">cairn</a></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-neutral-300)">Vendor the Inter subset instead of the CDN link</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-300)"><span style="width:9px;height:9px;flex:none;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--color-neutral-500)"></span>queue</span></td>
+            <td style="font-size:12px;color:var(--color-neutral-700)">no state yet</td>
+            <td><span style="font-size:12.5px;color:var(--color-neutral-700)">—</span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-500)" title="21 Aug 2026 09:15">1w</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td><a href="#project" style="font-size:12.5px;color:var(--color-neutral-500)">binbirnet</a></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-neutral-400)">Postgres connection pool exhausted under the importer</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-600)"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="flex:none"><path d="M2 6.4 4.6 9 10 3.2"></path></svg>done</span></td>
+            <td style="font-size:13px;color:var(--color-neutral-700)">—</td>
+            <td><span style="font-size:12.5px;color:var(--color-neutral-500)">alper</span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-500)" title="9 Aug 2026 16:44">9 Aug</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-8);margin-top:var(--space-8)">
+    <div style="padding:var(--space-6);border-radius:var(--radius-md);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg))">
+      <div style="font-size:12px;color:var(--color-neutral-700);margin-bottom:var(--space-3)">no state yet</div>
+      <p style="margin:0;font-size:13px;color:var(--color-neutral-400);line-height:1.55;text-wrap:pretty">Nobody has touched it — there is no state row at all. Words, at the faintest ink, because a dash here would look like an empty field rather than a missing record. The <span style="font-family:var(--mono);font-size:12px">by</span> cell goes to a dash for the same reason: no state, no author.</p>
+    </div>
+    <div style="padding:var(--space-6);border-radius:var(--radius-md);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg))">
+      <div style="font-size:13px;color:var(--color-neutral-700);margin-bottom:var(--space-3)">—</div>
+      <p style="margin:0;font-size:13px;color:var(--color-neutral-400);line-height:1.55;text-wrap:pretty">State exists, <span style="font-family:var(--mono);font-size:12px">next_step</span> is empty. An em dash, same faint ink — the distinction from the case at left is deliberate and worth keeping. Done tasks are the usual holder; blocked tasks borrow the cell for something better.</p>
+    </div>
+    <div style="padding:var(--space-6);border-radius:var(--radius-md);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg))">
+      <div style="font-size:13px;color:color-mix(in srgb,var(--cairn-blocked) 76%,var(--color-neutral-600));margin-bottom:var(--space-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">Need read access to the archive bucket</div>
+      <p style="margin:0;font-size:13px;color:var(--color-neutral-400);line-height:1.55;text-wrap:pretty">On a blocked row the cell holds <span style="font-family:var(--mono);font-size:12px">blocked_on</span> instead, tinted in the blocked hue so it reads as a different field. Long values clip to one line and carry the full text as a title — never two lines, because a row that can grow breaks the scan.</p>
+    </div>
+  </div>
+  </sc-if>
+</section>
+
+<!-- ── 05 PROJECT ──────────────────────────────────────────── -->
+<section id="project" style="margin-bottom:96px">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">05</span>
+    <h2 style="font-size:27px;margin:0">Project detail</h2>
+  </div>
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <p style="margin:0 0 var(--space-8);max-width:70ch;font-size:14px;color:var(--color-neutral-400);text-wrap:pretty">The board minus the project column, plus the one thing the human can do here: add a task. The new-task row sits at the top of the table rather than behind a modal — it is a title and a body, and it is faster to type than to open.</p>
+  </sc-if>
+
+  <div style="border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);overflow:hidden">
+    <div class="nav" style="padding:var(--space-3) var(--space-6);background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+      <span class="nav-brand" style="display:inline-flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 16 16" fill="var(--color-accent)"><path d="M8 1.4 10.4 4H5.6L8 1.4Z"></path><path d="M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z"></path><path d="M2.2 9h11.6l1.6 3.4H.6L2.2 9Z"></path></svg>cairn</span>
+      <a href="#board">Board</a>
+      <a href="#agents">Agents</a>
+      <button class="btn btn-icon btn-ghost" aria-label="Switch to light" style="color:var(--color-neutral-500)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13 9.6A5.6 5.6 0 0 1 6.4 3 5.6 5.6 0 1 0 13 9.6Z"></path></svg></button>
+      <span style="font-size:12.5px;color:var(--color-neutral-500)">alper</span>
+    </div>
+
+    <div style="padding:var(--space-8) var(--space-6) var(--space-8)">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:var(--space-8);margin-bottom:var(--space-8)">
+        <div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--color-neutral-600);margin-bottom:var(--space-2)"><a href="#board" style="color:var(--color-neutral-500)">board</a> / binbirnet</div>
+          <h3 style="font-size:25px;margin:0 0 var(--space-2)">binbirnet</h3>
+          <div style="display:flex;align-items:center;gap:var(--space-4);font-size:12.5px;color:var(--color-neutral-500)">
+            <span>3 tasks</span><span style="color:var(--color-neutral-700)">·</span>
+            <span style="display:inline-flex;align-items:center;gap:7px;color:var(--cairn-blocked)"><span style="width:8px;height:8px;flex:none;background:var(--cairn-blocked);transform:rotate(45deg)"></span>1 blocked</span>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="margin-bottom:2px">New task</button>
+      </div>
+
+      <div style="padding:var(--space-6);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:var(--shadow-sm);margin-bottom:var(--space-8);display:flex;flex-direction:column;gap:var(--space-3)">
+        <input class="input" placeholder="Title" aria-label="Title" style="font-size:15px">
+        <textarea class="input" placeholder="Body — what the next reader needs to know before they start" aria-label="Body" style="min-height:64px"></textarea>
+        <div style="display:flex;align-items:center;gap:var(--space-3)">
+          <button class="btn btn-primary">Create in backlog</button>
+          <button class="btn btn-ghost" style="color:var(--color-neutral-500)">Cancel</button>
+          <span style="font-size:11.5px;color:var(--color-neutral-700);margin-left:auto;font-family:var(--mono)">new tasks always start in backlog</span>
+        </div>
+      </div>
+
+      <table class="table" style="table-layout:fixed">
+        <thead><tr><th style="width:14px"></th><th>task</th><th style="width:118px">status</th><th style="width:330px">next step</th><th style="width:104px">last updated by</th><th style="width:56px;text-align:right">ago</th></tr></thead>
+        <tbody>
+          <tr>
+            <td></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-text)">Migrate the old invoice importer</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--cairn-blocked)"><span style="width:8px;height:8px;flex:none;background:var(--cairn-blocked);transform:rotate(45deg)"></span>blocked</span></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:color-mix(in srgb,var(--cairn-blocked) 76%,var(--color-neutral-600))" title="blocked_on — Need read access to the archive bucket — the 2022 exports are not in the repo.">Need read access to the archive bucket — the 2022 exports are not in the repo.</td>
+            <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-400)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-400)">1d</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-text)">Nightly export job silently drops rows when the SFTP handshake times out</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-200)"><span style="width:9px;height:9px;flex:none;border-radius:50%;background:var(--color-accent-500)"></span>active</span></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--color-neutral-300)">retry with backoff and log the handshake failure instead of swallowing it, then confirm against last week&#39;s dropped batch</td>
+            <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-400)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-400)">6d</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="#task" style="color:var(--color-neutral-400)">Postgres connection pool exhausted under the importer</a></td>
+            <td><span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-neutral-600)"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="flex:none"><path d="M2 6.4 4.6 9 10 3.2"></path></svg>done</span></td>
+            <td style="font-size:13px;color:var(--color-neutral-700)">—</td>
+            <td><span style="font-size:12.5px;color:var(--color-neutral-500)">alper</span></td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--color-neutral-500)">9 Aug</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="newproject" style="margin-bottom:96px">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">05b</span>
+    <h2 style="font-size:27px;margin:0">New project</h2>
+  </div>
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <p style="margin:0 0 var(--space-8);max-width:70ch;font-size:14px;color:var(--color-neutral-400);text-wrap:pretty">The board is read-only about tasks, not about projects, so this is the one creation affordance it carries: a ghost button on the header line, and a row that opens in place above the table. Two fields, because the second one is permanent — the reference prefix goes into every task reference this project will ever have (<span style="font-family:var(--mono);font-size:12px">bnn-4</span>), and it is the only value in Cairn a human cannot change later.</p>
+  </sc-if>
+
+  <div style="border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);overflow:hidden">
+    <div class="nav" style="padding:var(--space-3) var(--space-6);background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+      <span class="nav-brand" style="display:inline-flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 16 16" fill="var(--color-accent)"><path d="M8 1.4 10.4 4H5.6L8 1.4Z"></path><path d="M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z"></path><path d="M2.2 9h11.6l1.6 3.4H.6L2.2 9Z"></path></svg>cairn</span>
+      <a href="#board" aria-current="page">Board</a>
+      <a href="#agents">Agents</a>
+      <button class="btn btn-icon btn-ghost" aria-label="Switch to light" style="color:var(--color-neutral-500)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13 9.6A5.6 5.6 0 0 1 6.4 3 5.6 5.6 0 1 0 13 9.6Z"></path></svg></button>
+      <span style="font-size:12.5px;color:var(--color-neutral-500)">alper</span>
+    </div>
+
+    <div style="padding:var(--space-6) var(--space-6) var(--space-8)">
+      <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-4);padding-left:14px">
+        <span style="font-size:12.5px;color:var(--color-neutral-500)">8 tasks</span>
+        <span style="color:var(--color-neutral-700)">·</span>
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--color-accent)"><span style="width:7px;height:7px;border-radius:50%;background:var(--color-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--color-accent) 22%,transparent)"></span>1 waiting on you</span>
+        <span style="font-size:12px;color:var(--color-neutral-700);margin-left:auto;font-family:var(--mono)">most recently touched first</span>
+        <button class="btn btn-ghost" style="color:var(--color-accent);margin-left:var(--space-4)">New project</button>
+      </div>
+
+      <div style="padding:var(--space-6);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:var(--shadow-sm);margin-bottom:var(--space-6);display:flex;flex-direction:column;gap:var(--space-4)">
+        <div style="display:flex;gap:var(--space-6);align-items:flex-start">
+          <div class="field" style="flex:1">
+            <label for="pname">Project name</label>
+            <input class="input" id="pname" value="binbirnet" style="font-size:15px">
+          </div>
+          <div class="field" style="width:170px;flex:none">
+            <label for="pref">Reference prefix</label>
+            <input class="input" id="pref" value="bnn" style="font-family:var(--mono);text-transform:lowercase">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--space-4)">
+          <button class="btn btn-primary">Create project</button>
+          <button class="btn btn-ghost" style="color:var(--color-neutral-500)">Cancel</button>
+          <span style="font-size:12px;color:var(--color-neutral-600);margin-left:auto;text-wrap:pretty;max-width:44ch;text-align:right">Tasks here will be numbered <span style="font-family:var(--mono);color:var(--color-neutral-400)">bnn-1</span>, <span style="font-family:var(--mono);color:var(--color-neutral-400)">bnn-2</span> … The prefix cannot be changed afterwards.</span>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:var(--space-2);padding-left:14px;opacity:0.4">
+        <div style="height:1px;background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent)"></div>
+        <div style="display:flex;gap:var(--space-8);font-size:12.5px;color:var(--color-neutral-600);padding:var(--space-2) 0">
+          <span style="width:110px">cairn</span><span style="flex:1">Embed the frontend into the binary</span><span>4m</span>
+        </div>
+        <div style="height:1px;background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent)"></div>
+        <div style="display:flex;gap:var(--space-8);font-size:12.5px;color:var(--color-neutral-600);padding:var(--space-2) 0">
+          <span style="width:110px">cairn</span><span style="flex:1">MCP server at /mcp over streamable HTTP</span><span>22m</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-8);margin-top:var(--space-8)">
+    <div style="padding:var(--space-6);border-radius:var(--radius-md);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg))">
+      <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-3)">The prefix is derived, then editable</h6>
+      <p style="margin:0;font-size:13px;color:var(--color-neutral-400);line-height:1.55;text-wrap:pretty">Typing the name fills the prefix: lowercase, consonant-skeleton to three or four characters, deduplicated against existing projects. <span style="font-family:var(--mono);font-size:12px">binbirnet → bnn</span>, <span style="font-family:var(--mono);font-size:12px">cairn → cairn</span> if it is already short enough. The human can overwrite it before creating and never after.</p>
+    </div>
+    <div style="padding:var(--space-6);border-radius:var(--radius-md);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg))">
+      <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-3)">No modal, no second screen</h6>
+      <p style="margin:0;font-size:13px;color:var(--color-neutral-400);line-height:1.55;text-wrap:pretty">The board stays behind it, dimmed but present, in the same pattern as the new-task row on project detail. Two inputs and a button do not earn a route of their own, and nothing about creating a project needs the board out of the way.</p>
+    </div>
+    <div style="padding:var(--space-6);border-radius:var(--radius-md);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg))">
+      <h6 style="color:var(--color-neutral-500);margin-bottom:var(--space-3)">Deleting a project</h6>
+      <p style="margin:0;font-size:13px;color:var(--color-neutral-400);line-height:1.55;text-wrap:pretty">Lives on project detail, not here, and reuses the task-delete dialog verbatim — same type-the-reference confirmation, with the count of tasks and worklog entries it takes with it. It is the largest destructive act in the product and deserves no new pattern.</p>
+    </div>
+  </div>
+  </sc-if>
+</section>
+
+<!-- ── 06 EMPTY STATES ─────────────────────────────────────── -->
+<section id="empty" style="margin-bottom:96px">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">06</span>
+    <h2 style="font-size:27px;margin:0">Empty states</h2>
+  </div>
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <p style="margin:0 0 var(--space-8);max-width:70ch;font-size:14px;color:var(--color-neutral-400);text-wrap:pretty">Flush left, no centred illustration, no exclamation. Each one says what is missing and, where there is one, the single next move. The empty board is the only one that explains anything, because it is the only one a person sees before they understand the product.</p>
+  </sc-if>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-8)">
+    <div style="border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);padding:var(--space-8);min-height:250px;display:flex;flex-direction:column">
+      <h6 style="color:var(--color-neutral-600);margin-bottom:var(--space-8)">Board · no projects</h6>
+      <div style="margin-top:auto">
+        <p style="margin:0 0 var(--space-3);font-size:16px;color:var(--color-text)">Nothing here yet.</p>
+        <p style="margin:0 0 var(--space-6);font-size:13px;color:var(--color-neutral-400);line-height:1.55;max-width:38ch;text-wrap:pretty">A project holds tasks; a task holds a note for whoever picks it up. Make one, or register an agent and let it file the first one over MCP.</p>
+        <div style="display:flex;gap:var(--space-2)">
+          <button class="btn btn-primary">New project</button>
+          <button class="btn btn-secondary">Register an agent</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);padding:var(--space-8);min-height:250px;display:flex;flex-direction:column">
+      <h6 style="color:var(--color-neutral-600);margin-bottom:var(--space-8)">Project · no tasks</h6>
+      <div style="margin-top:auto">
+        <p style="margin:0 0 var(--space-3);font-size:16px;color:var(--color-text)">No tasks in binbirnet.</p>
+        <p style="margin:0 0 var(--space-6);font-size:13px;color:var(--color-neutral-400);line-height:1.55;max-width:38ch;text-wrap:pretty">Everything you file starts in backlog and waits for you to queue it.</p>
+        <button class="btn btn-primary">New task</button>
+      </div>
+    </div>
+
+    <div style="border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);padding:var(--space-8);min-height:250px;display:flex;flex-direction:column">
+      <h6 style="color:var(--color-neutral-600);margin-bottom:var(--space-8)">Task · no state</h6>
+      <div style="margin-top:auto">
+        <div style="border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:inset 0 0 0 1px var(--color-neutral-800);padding:var(--space-6);margin-bottom:var(--space-4)">
+          <h6 style="margin:0 0 var(--space-3);color:var(--color-neutral-600)">State</h6>
+          <p style="margin:0;font-size:13.5px;color:var(--color-neutral-500);line-height:1.55;text-wrap:pretty">No state yet. The first agent to work this task writes one; until then the body is all there is.</p>
+        </div>
+        <p style="margin:0;font-size:12px;color:var(--color-neutral-700);text-wrap:pretty">Panel stays, filled with its own absence — so the reader learns where state lives before there is any.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 07 RELATIVE TIME ────────────────────────────────────── -->
+<section id="time" style="margin-bottom:96px">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">07</span>
+    <h2 style="font-size:27px;margin:0">Relative time</h2>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,540px) minmax(0,1fr);gap:48px;align-items:start">
+    <div style="padding:var(--space-8);border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm)">
+      <table class="table" style="font-family:var(--mono);font-size:12.5px">
+        <thead><tr><th style="width:110px">elapsed</th><th>shown</th><th style="width:110px;text-align:right">unit</th></tr></thead>
+        <tbody>
+          <tr><td style="color:var(--color-neutral-500)">&lt; 60s</td><td style="color:var(--color-text)">now</td><td style="text-align:right;color:var(--color-neutral-600)">—</td></tr>
+          <tr><td style="color:var(--color-neutral-500)">&lt; 60m</td><td style="color:var(--color-text)">4m · 22m</td><td style="text-align:right;color:var(--color-neutral-600)">minutes</td></tr>
+          <tr><td style="color:var(--color-neutral-500)">&lt; 24h</td><td style="color:var(--color-text)">2h · 19h</td><td style="text-align:right;color:var(--color-neutral-600)">hours</td></tr>
+          <tr><td style="color:var(--color-neutral-500)">&lt; 7d</td><td style="color:var(--color-text)">1d · 6d</td><td style="text-align:right;color:var(--color-neutral-600)">days</td></tr>
+          <tr><td style="color:var(--color-neutral-500)">&lt; 4w</td><td style="color:var(--color-text)">1w · 3w</td><td style="text-align:right;color:var(--color-neutral-600)">weeks</td></tr>
+          <tr><td style="color:var(--color-neutral-500)">this year</td><td style="color:var(--color-text)">9 Aug</td><td style="text-align:right;color:var(--color-neutral-600)">date</td></tr>
+          <tr><td style="color:var(--color-neutral-500)">older</td><td style="color:var(--color-text)">9 Aug 25</td><td style="text-align:right;color:var(--color-neutral-600)">date + year</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex-direction:column;gap:var(--space-6);font-size:13.5px;color:var(--color-neutral-400);line-height:1.6">
+      <p style="margin:0;text-wrap:pretty">One unit, always. Never <span style="font-family:var(--mono);font-size:12px">1d 4h</span>, never the word "ago" in the column — the header says it once. Truncate rather than round: 59 minutes is <span style="font-family:var(--mono);font-size:12px">59m</span>, 61 minutes is <span style="font-family:var(--mono);font-size:12px">1h</span>.</p>
+      <p style="margin:0;text-wrap:pretty">Weeks stop at four. Past that a relative figure stops carrying information and an absolute date carries more — and a board where the bottom rows read <span style="font-family:var(--mono);font-size:12px">9 Aug</span> instead of <span style="font-family:var(--mono);font-size:12px">3w</span> makes the staleness visible rather than arithmetic.</p>
+      <p style="margin:0;text-wrap:pretty">Right-aligned, tabular figures, so the column of numbers lines up and the eye can run down it. The cell's <span style="font-family:var(--mono);font-size:12px">title</span> carries the full local timestamp for anyone who needs the exact minute.</p>
+      <p style="margin:0;text-wrap:pretty">Luminance tracks recency: anything under an hour sits at <span style="font-family:var(--mono);font-size:12px">--text-muted</span>, older rows drop to <span style="font-family:var(--mono);font-size:12px">--text-dim</span>. It costs nothing and the top of the board glows slightly.</p>
+    </div>
+    </sc-if>
+  </div>
+</section>
+
+<!-- ── 08 AGENTS ───────────────────────────────────────────── -->
+<section id="agents" style="margin-bottom:96px">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">08</span>
+    <h2 style="font-size:27px;margin:0">Agents &amp; tokens</h2>
+  </div>
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <p style="margin:0 0 var(--space-8);max-width:70ch;font-size:14px;color:var(--color-neutral-400);text-wrap:pretty">The token reveal is the one place in the app that raises its voice: it is the only screen where dismissing it loses something unrecoverable. It gets the accent outline, the largest mono on any screen, and a copy button — and the wording says <i>issue another</i>, not <i>recover</i>, because there is no recovery.</p>
+  </sc-if>
+
+  <div style="border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);overflow:hidden">
+    <div class="nav" style="padding:var(--space-3) var(--space-6);background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat bottom / 100% 1px">
+      <span class="nav-brand" style="display:inline-flex;align-items:center;gap:8px"><svg width="15" height="15" viewBox="0 0 16 16" fill="var(--color-accent)"><path d="M8 1.4 10.4 4H5.6L8 1.4Z"></path><path d="M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z"></path><path d="M2.2 9h11.6l1.6 3.4H.6L2.2 9Z"></path></svg>cairn</span>
+      <a href="#board">Board</a>
+      <a href="#agents" aria-current="page">Agents</a>
+      <button class="btn btn-icon btn-ghost" aria-label="Switch to light" style="color:var(--color-neutral-500)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13 9.6A5.6 5.6 0 0 1 6.4 3 5.6 5.6 0 1 0 13 9.6Z"></path></svg></button>
+      <span style="font-size:12.5px;color:var(--color-neutral-500)">alper</span>
+    </div>
+
+    <div style="padding:var(--space-8) var(--space-6);display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:48px;align-items:start">
+      <div>
+        <h3 style="font-size:19px;margin:0 0 var(--space-6)">Agents</h3>
+
+        <div style="border-radius:var(--radius-lg);padding:var(--space-6) var(--space-8) var(--space-8);margin-bottom:var(--space-8);background:color-mix(in srgb,var(--color-accent) 7%,var(--color-surface));box-shadow:inset 0 0 0 1px var(--color-accent)">
+          <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-4)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.6 14.6 13.4H1.4L8 1.6Z"></path><path d="M8 6v3.2M8 11.3v.1"></path></svg>
+            <h6 style="margin:0;color:var(--color-accent)">Copy this now — it is shown once</h6>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4) var(--space-6);border-radius:var(--radius-md);background:var(--color-bg);margin-bottom:var(--space-4)">
+            <code style="font-family:var(--mono);font-size:16px;letter-spacing:0.01em;color:var(--color-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">crn_7fJq2wV9xL4mBs1RtZ0kPdNhY6aE3uQg</code>
+            <button class="btn btn-primary" style="margin-left:auto;flex:none">Copy</button>
+          </div>
+          <p style="margin:0;font-size:13px;color:var(--color-neutral-300);line-height:1.55;max-width:64ch;text-wrap:pretty">Cairn stores only a hash of it. Close this panel without copying and the token is gone — the only way forward is to issue a new one and revoke this. Paste it into <span style="font-family:var(--mono);font-size:12px;color:var(--color-neutral-200)">claude</span>'s MCP config as the bearer token for <span style="font-family:var(--mono);font-size:12px;color:var(--color-neutral-200)">http://localhost:7777/mcp</span>.</p>
+        </div>
+
+        <table class="table" style="table-layout:fixed">
+          <thead><tr><th style="width:150px">agent</th><th>token</th><th style="width:100px">last used</th><th style="width:90px;text-align:right"></th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-200)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">claude</span></span></td>
+              <td style="font-family:var(--mono);font-size:12.5px;color:var(--color-neutral-500)">crn_7fJq…3uQg</td>
+              <td style="font-size:12.5px;color:var(--color-neutral-400);font-variant-numeric:tabular-nums">4m</td>
+              <td style="text-align:right"><button class="btn btn-ghost" style="color:var(--color-neutral-500)">Revoke</button></td>
+            </tr>
+            <tr>
+              <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-200)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">codex</span></span></td>
+              <td style="font-family:var(--mono);font-size:12.5px;color:var(--color-neutral-500)">crn_x2Lp…9vKt</td>
+              <td style="font-size:12.5px;color:var(--color-neutral-400);font-variant-numeric:tabular-nums">1d</td>
+              <td style="text-align:right"><button class="btn btn-ghost" style="color:var(--color-neutral-500)">Revoke</button></td>
+            </tr>
+            <tr>
+              <td><span style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--color-neutral-500)"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="display:var(--cairn-agent-glyph);flex:none;opacity:0.8"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6"></rect><path d="M6.4 1.4v2.2M9.6 1.4v2.2M6.4 12.4v2.2M9.6 12.4v2.2M1.4 6.4h2.2M1.4 9.6h2.2M12.4 6.4h2.2M12.4 9.6h2.2"></path></svg><span style="font-family:var(--cairn-agent-font)">aider</span></span></td>
+              <td style="font-family:var(--mono);font-size:12.5px;color:var(--color-neutral-600)">crn_m8Rd…1sWq</td>
+              <td style="font-size:12.5px;color:var(--color-neutral-600)">never</td>
+              <td style="text-align:right"><button class="btn btn-ghost" style="color:var(--color-neutral-500)">Revoke</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <aside>
+        <h6 style="color:var(--color-neutral-400);margin-bottom:var(--space-4)">Register an agent</h6>
+        <div style="display:flex;flex-direction:column;gap:var(--space-3)">
+          <div class="field">
+            <label for="agentname">Name</label>
+            <input class="input" id="agentname" placeholder="claude" style="font-family:var(--mono)">
+          </div>
+          <button class="btn btn-primary btn-block" style="margin-top:var(--space-1)">Create token</button>
+          <p style="margin:var(--space-2) 0 0;font-size:12px;color:var(--color-neutral-600);line-height:1.55;text-wrap:pretty">The name is what appears in <span style="font-family:var(--mono)">last updated by</span> and on every worklog entry that agent writes. Pick the one you will recognise a month from now.</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ── 09 LOGIN & SETUP ────────────────────────────────────── -->
+<section id="entry" style="margin-bottom:96px">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">09</span>
+    <h2 style="font-size:27px;margin:0">Login &amp; first launch</h2>
+  </div>
+  <sc-if value="{{ annotations }}" hint-placeholder-val="{{ true }}">
+  <p style="margin:0 0 var(--space-8);max-width:70ch;font-size:14px;color:var(--color-neutral-400);text-wrap:pretty">Both are the same object at two sizes: a left-aligned panel on the bare ground, the cairn mark above it. No card centred in a hero, no product pitch — the person here already installed the binary. First launch carries one extra sentence, and it is the one about the command line, because it is the only chance to say it.</p>
+  </sc-if>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-8)">
+    <div style="border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);padding:64px 56px;min-height:340px;display:flex;align-items:center">
+      <div style="width:100%;max-width:300px">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="var(--color-accent)" style="margin-bottom:var(--space-6)"><path d="M8 1.4 10.4 4H5.6L8 1.4Z"></path><path d="M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z"></path><path d="M2.2 9h11.6l1.6 3.4H.6L2.2 9Z"></path></svg>
+        <h3 style="font-size:22px;margin:0 0 var(--space-8)">cairn</h3>
+        <div style="display:flex;flex-direction:column;gap:var(--space-4)">
+          <div class="field"><label for="lu">Username</label><input class="input" id="lu" autocomplete="username"></div>
+          <div class="field"><label for="lp">Password</label><input class="input" id="lp" type="password" autocomplete="current-password"></div>
+          <button class="btn btn-primary btn-block" style="margin-top:var(--space-2)">Sign in</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 45%,var(--color-bg));box-shadow:var(--shadow-sm);padding:64px 56px;min-height:340px;display:flex;align-items:center">
+      <div style="width:100%;max-width:340px">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="var(--color-accent)" style="margin-bottom:var(--space-6)"><path d="M8 1.4 10.4 4H5.6L8 1.4Z"></path><path d="M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z"></path><path d="M2.2 9h11.6l1.6 3.4H.6L2.2 9Z"></path></svg>
+        <h3 style="font-size:22px;margin:0 0 var(--space-3)">Name yourself</h3>
+        <p style="margin:0 0 var(--space-8);font-size:13.5px;color:var(--color-neutral-400);line-height:1.55;text-wrap:pretty">This is your server. The name you pick here is the one that appears next to every task you touch.</p>
+        <div style="display:flex;flex-direction:column;gap:var(--space-4)">
+          <div class="field"><label for="su">Username</label><input class="input" id="su" placeholder="alper" autocomplete="username"></div>
+          <div class="field"><label for="sp">Password</label><input class="input" id="sp" type="password" autocomplete="new-password"></div>
+          <button class="btn btn-primary btn-block" style="margin-top:var(--space-2)">Start</button>
+        </div>
+        <p style="margin:var(--space-8) 0 0;font-size:12.5px;color:var(--color-neutral-500);line-height:1.6;text-wrap:pretty">There is no reset email and never will be. If you forget this password, stop the server and run <span style="font-family:var(--mono);font-size:12px;color:var(--color-neutral-300)">cairn --reset-password</span> on the machine it runs on.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 10 OPEN ─────────────────────────────────────────────── -->
+<section id="open">
+  <div style="display:flex;align-items:baseline;gap:var(--space-4);margin-bottom:var(--space-6)">
+    <span style="font-family:var(--mono);font-size:12px;color:var(--color-accent)">10</span>
+    <h2 style="font-size:27px;margin:0">Open, and deliberately not done</h2>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-8) 48px;max-width:1100px">
+    <div>
+      <h6 style="color:var(--color-neutral-400);margin-bottom:var(--space-3)">The blocked row borrows its own column</h6>
+      <p style="margin:0;font-size:13.5px;color:var(--color-neutral-400);line-height:1.6;text-wrap:pretty">Decided: on a blocked row the <span style="font-family:var(--mono);font-size:12px">next step</span> cell carries <span style="font-family:var(--mono);font-size:12px">blocked_on</span>, in the blocked hue. Same column, same width, no header change — the hue is what says the field is different. It is the only cell in the app whose meaning depends on the row's status, which is worth a comment in the Vue.</p>
+    </div>
+    <div>
+      <h6 style="color:var(--color-neutral-400);margin-bottom:var(--space-3)">Light theme</h6>
+      <p style="margin:0;font-size:13.5px;color:var(--color-neutral-400);line-height:1.6;text-wrap:pretty">Only the ground and ink groups need overriding; roles, type, space and radii are hue-stable and carry over. The two things that need real work are the review glow, which reads as a halo on white and probably becomes a filled ring, and <span style="font-family:var(--mono);font-size:12px">--blocked</span>, which needs about 0.15 less lightness to hold the same weight.</p>
+    </div>
+    <div>
+      <h6 style="color:var(--color-neutral-400);margin-bottom:var(--space-3)">Motion</h6>
+      <p style="margin:0;font-size:13.5px;color:var(--color-neutral-400);line-height:1.6;text-wrap:pretty">One transition in the app: 120ms on the status mark's colour and the actions row swapping out, so a transition you just made is legible as a change rather than a repaint. Nothing else moves. New worklog entries appear without animation.</p>
+    </div>
+    <div>
+      <h6 style="color:var(--color-neutral-400);margin-bottom:var(--space-3)">Icons</h6>
+      <p style="margin:0;font-size:13.5px;color:var(--color-neutral-400);line-height:1.6;text-wrap:pretty">Eleven inline SVGs total: the cairn mark, the theme moon, the chip glyph, the check, the chevron and the warning triangle. Drawn to Phosphor's proportions at 1.5px stroke on a 16px box so a later swap to the real set is a find-and-replace, not a redesign.</p>
+    </div>
+  </div>
+</section>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;annotations&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Spec page&quot; },
+  &quot;reviewSignal&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;edge mark + count&quot;, &quot;count only&quot;, &quot;edge mark only&quot;, &quot;none&quot;], &quot;default&quot;: &quot;edge mark + count&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Board&quot; },
+  &quot;agentMark&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;chip glyph&quot;, &quot;mono type&quot;, &quot;none&quot;], &quot;default&quot;: &quot;chip glyph&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Board&quot; },
+  &quot;blockedHue&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;min&quot;: 20, &quot;max&quot;: 110, &quot;step&quot;: 2, &quot;default&quot;: 70, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Status&quot; }
+}">
+class Component extends DCLogic {
+  applyVars() {
+    const s = document.documentElement.style;
+    const hue = this.props.blockedHue ?? 70;
+    s.setProperty('--cairn-blocked', 'oklch(0.72 0.105 ' + hue + ')');
+    s.setProperty('--cairn-blocked-tint', 'oklch(0.72 0.105 ' + hue + ' / 0.13)');
+
+    const sig = this.props.reviewSignal ?? 'edge mark + count';
+    s.setProperty('--cairn-edge', sig.indexOf('edge') !== -1 ? '2px' : '0px');
+
+    const mark = this.props.agentMark ?? 'chip glyph';
+    s.setProperty('--cairn-agent-glyph', mark === 'chip glyph' ? 'inline-flex' : 'none');
+    s.setProperty('--cairn-agent-font', mark === 'mono type' ? 'var(--mono)' : 'var(--font-body)');
+  }
+  componentDidMount() { this.applyVars(); }
+  componentDidUpdate() { this.applyVars(); }
+  renderVals() {
+    const sig = this.props.reviewSignal ?? 'edge mark + count';
+    return {
+      annotations: this.props.annotations ?? true,
+      showCount: sig.indexOf('count') !== -1
+    };
+  }
+}
+</script>
+</body>
+</html>

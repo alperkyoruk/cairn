@@ -105,10 +105,11 @@ func (s *Service) CreateTask(ctx context.Context, actor Actor, in CreateTaskInpu
 			return internal(err)
 		}
 		// The first worklog entry records who filed it. from_status is null:
-		// the task had nowhere to come from.
+		// the task had nowhere to come from. No outcome, because repeating the
+		// title here would read as though something had been attempted.
 		return store.InsertWorklog(ctx, q, model.WorklogEntry{
 			ID: id.New(), TaskID: task.ID, ActorID: actor.id, CreatedAt: now,
-			WhatWasTried: "filed this task", Outcome: title, ToStatus: status,
+			WhatWasTried: "filed this task", ToStatus: status,
 		})
 	})
 	if err != nil {

@@ -135,8 +135,20 @@ func NextFor(actor ActorType, from Status) []Status {
 			}
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	sort.Slice(out, func(i, j int) bool { return progressRank[out[i]] < progressRank[out[j]] })
 	return out
+}
+
+// progressRank orders the moves available from a status so that the one
+// carrying the work forward comes first.
+//
+// Alphabetical order would put "blocked" ahead of "review" and "active" ahead
+// of "done", which is backwards: the first move offered should be the one the
+// caller most likely wants. Both surfaces rely on this order -- the interface
+// makes the first move its primary button, and an agent reading can_move_to
+// sees the main path before the escape hatch.
+var progressRank = map[Status]int{
+	Done: 1, Review: 2, Active: 3, Queue: 4, Blocked: 5, Backlog: 6,
 }
 
 // Requirement describes what a transition into a status demands of the caller

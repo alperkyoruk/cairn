@@ -1,0 +1,51 @@
+/* cairn tokens. dark is the authored theme; light overrides
+   the ground and ink groups only — the rest is hue-stable. */
+:root {
+  color-scheme: dark;
+
+  /* ground */
+  --bg:             #161826;
+  --surface:        color-mix(in srgb, #232532 45%, #161826);
+  --surface-raised: #232532;
+
+  /* ink */
+  --text:           #e9e9ed;
+  --text-muted:     #b2b6ca;
+  --text-dim:       #75798c;
+  --text-faint:     #595d6c;
+
+  /* rules — fade to transparent 48px from each end */
+  --rule:           color-mix(in srgb, #e9e9ed 8%, transparent);
+  --rule-strong:    color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  /* roles */
+  --accent:         #9184d9;
+  --accent-tint:    color-mix(in srgb, #9184d9 14%, transparent);
+  --accent-deep:    #423a6a;
+  --blocked:        oklch(0.72 0.105 70);
+  --blocked-tint:   oklch(0.72 0.105 70 / 0.13);
+
+  /* type */
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --t-xs: 11px;  --t-sm: 12px;  --t-base: 13px;
+  --t-md: 15px;  --t-lg: 19px;  --t-xl: 25px;
+
+  /* space (0.7x density) */
+  --s-1: 3px;  --s-2: 6px;  --s-3: 8px;  --s-4: 11px;
+  --s-6: 17px; --s-8: 22px; --s-12: 34px;
+
+  /* radii + elevation: an edge, then ambient darkness */
+  --r-sm: 4px; --r-md: 8px; --r-lg: 14px;
+  --e-1: 0 0 0 1px #3f424d;
+  --e-2: 0 0 0 1px #595d6c, 0 6px 18px rgb(0 0 0 / .55);
+
+  /* one transition in the whole app, for status changes only */
+  --motion: 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) { :root { --motion: 0s; } }
+
+/* Light is deliberately unstyled: the design defers it, and only the ground
+   and ink groups will need overriding when it lands. The toggle is wired now
+   so the plumbing is not the thing that has to be built later. */

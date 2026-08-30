@@ -1,0 +1,146 @@
+<script setup>
+import { computed, onMounted, ref, watch } from 'vue'
+import { api } from '../api.js'
+import TaskTable from '../components/TaskTable.vue'
+
+const props = defineProps({ slug: String })
+
+const project = ref(null)
+const rows = ref([])
+const agents = ref([])
+const failure = ref('')
+const ready = ref(false)
+
+const adding = ref(false)
+const draft = ref({ title: '', body: '' })
+
+const blocked = computed(() => rows.value.filter((r) => r.task.status === 'blocked').length)
+
+async function load() {
+  ready.value = false
+  try {
+    const [p, tasks, agentList] = await Promise.all([
+      api.project(props.slug), api.projectTasks(props.slug), api.agents(),
+    ])
+    project.value = p
+    agents.value = agentList
+    // The board hands TaskTable {task, state}; a project task list is bare
+    // tasks, so it gets the same shape with the state fetched per row.
+    rows.value = await Promise.all(tasks.map(async (task) => ({
+      task,
+      state: (await api.task(task.ref)).state,
+    })))
+  } catch (err) {
+    failure.value = err.message
+  } finally {
+    ready.value = true
+  }
+}
+
+async function addTask() {
+  failure.value = ''
+  try {
+    await api.createTask(project.value.id, draft.value.title, draft.value.body, 'backlog')
+    draft.value = { title: '', body: '' }
+    adding.value = false
+    await load()
+  } catch (err) {
+    failure.value = err.message
+  }
+}
+
+onMounted(load)
+watch(() => props.slug, load)
+</script>
+
+<template>
+  <div v-if="!ready" />
+  <div v-else-if="!project" class="pad"><p class="error">{{ failure }}</p></div>
+
+  <div v-else class="project">
+    <nav class="crumbs mono">
+      <RouterLink to="/">board</RouterLink>
+      <span class="faint">/</span>
+      <span class="dim">{{ project.slug }}</span>
+    </nav>
+
+    <header>
+      <div>
+        <h1>{{ project.name }}</h1>
+        <p class="meta">
+          {{ rows.length }} {{ rows.length === 1 ? 'task' : 'tasks' }}
+          <template v-if="blocked">
+            <span class="sep">·</span>
+            <span class="blocked"><span class="diamond" />{{ blocked }} blocked</span>
+          </template>
+        </p>
+      </div>
+      <button v-if="!adding" class="btn btn-primary" @click="adding = true">New task</button>
+    </header>
+
+    <p v-if="failure" class="error">{{ failure }}</p>
+
+    <!-- In place, not behind a modal: it is a title and a body, and it is
+         faster to type than to open. -->
+    <form v-if="adding" class="newtask" @submit.prevent="addTask">
+      <input v-model="draft.title" class="input input-lg" placeholder="Title" autofocus />
+      <textarea
+        v-model="draft.body"
+        class="input"
+        rows="3"
+        placeholder="Body — what the next reader needs to know before they start"
+      />
+      <div class="foot">
+        <button class="btn btn-primary" type="submit" :disabled="!draft.title">Create in backlog</button>
+        <button class="btn btn-secondary" type="button" @click="adding = false">Cancel</button>
+        <span class="note mono">new tasks always start in backlog</span>
+      </div>
+    </form>
+
+    <TaskTable v-if="rows.length" :rows="rows" :show-project="false" :agents="agents" />
+
+    <div v-else class="empty">
+      <p class="lead">No tasks in {{ project.slug }}.</p>
+      <p class="prose">Everything you file starts in backlog and waits for you to queue it.</p>
+      <button class="btn btn-primary" @click="adding = true">New task</button>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.project, .pad { padding: var(--s-6) var(--s-6) var(--s-8); }
+
+.crumbs { display: flex; gap: var(--s-2); font-size: var(--t-sm); margin-bottom: var(--s-4); }
+.crumbs a { color: var(--text-dim); }
+
+header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-8);
+}
+
+h1 { font-size: var(--t-xl); font-weight: 500; letter-spacing: -0.01em; }
+.meta { font-size: 12.5px; color: var(--text-dim); margin-top: var(--s-2); }
+.sep { margin: 0 var(--s-2); }
+.blocked { color: var(--blocked); display: inline-flex; align-items: center; gap: 7px; }
+.diamond { width: 8px; height: 8px; background: var(--blocked); transform: rotate(45deg); }
+
+.newtask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  background: var(--surface-raised);
+  border-radius: var(--r-md);
+  padding: var(--s-6);
+  margin-bottom: var(--s-6);
+}
+.newtask textarea { min-height: 64px; }
+.foot { display: flex; align-items: center; gap: var(--s-3); }
+.note { margin-left: auto; font-size: var(--t-sm); color: var(--text-dim); }
+
+.empty { padding: var(--s-12) 14px; max-width: 54ch; }
+.lead { font-size: var(--t-md); color: var(--text-muted); margin-bottom: var(--s-3); }
+.prose { color: var(--text-dim); line-height: 1.6; margin-bottom: var(--s-6); }
+</style>
