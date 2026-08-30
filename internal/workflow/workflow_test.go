@@ -18,7 +18,7 @@ var matrix = map[Status]map[Status]string{
 	Active:  {Backlog: ".", Queue: ".", Active: ".", Review: "B", Done: ".", Blocked: "B"},
 	Review:  {Backlog: ".", Queue: ".", Active: "H", Review: ".", Done: "H", Blocked: "."},
 	Done:    {Backlog: ".", Queue: "H", Active: ".", Review: ".", Done: ".", Blocked: "."},
-	Blocked: {Backlog: ".", Queue: ".", Active: "B", Review: ".", Done: ".", Blocked: "."},
+	Blocked: {Backlog: "H", Queue: ".", Active: "B", Review: ".", Done: ".", Blocked: "."},
 }
 
 func TestTransitionMatrixIsExhaustive(t *testing.T) {
@@ -119,6 +119,7 @@ func TestNextFor(t *testing.T) {
 		{Agent, Review, ""},
 		{Human, Review, "done, active"},
 		{Agent, Blocked, "active"},
+		{Human, Blocked, "active, backlog"},
 		{Agent, Done, ""},
 		{Human, Done, "queue"},
 	}

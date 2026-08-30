@@ -76,15 +76,16 @@ type edge struct{ from, to Status }
 // The rest of the human-only edges exist so the human can run the board:
 // send work back from review, deprioritise, and reopen.
 var edges = map[edge][]ActorType{
-	{Backlog, Queue}:  {Human},
-	{Queue, Active}:   {Human, Agent},
-	{Active, Review}:  {Human, Agent},
-	{Active, Blocked}: {Human, Agent},
-	{Blocked, Active}: {Human, Agent},
-	{Review, Done}:    {Human},
-	{Review, Active}:  {Human},
-	{Queue, Backlog}:  {Human},
-	{Done, Queue}:     {Human},
+	{Backlog, Queue}:   {Human},
+	{Queue, Active}:    {Human, Agent},
+	{Active, Review}:   {Human, Agent},
+	{Active, Blocked}:  {Human, Agent},
+	{Blocked, Active}:  {Human, Agent},
+	{Review, Done}:     {Human},
+	{Review, Active}:   {Human},
+	{Queue, Backlog}:   {Human},
+	{Blocked, Backlog}: {Human},
+	{Done, Queue}:      {Human},
 }
 
 // EntryStatuses are the statuses a task may be created in. Everything else has

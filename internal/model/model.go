@@ -27,6 +27,7 @@ type Token struct {
 	ID         string
 	ActorID    string
 	Name       string
+	Prefix     string // the token's opening characters, for identifying it later
 	CreatedAt  time.Time
 	ExpiresAt  *time.Time
 	LastUsedAt *time.Time

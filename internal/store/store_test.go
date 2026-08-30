@@ -50,12 +50,48 @@ func TestMigrateIsIdempotent(t *testing.T) {
 			t.Fatalf("re-running migrations: %v", err)
 		}
 	}
+	files, err := os.ReadDir("migrations")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var n int
 	if err := db.w.QueryRow(`SELECT count(*) FROM schema_migration`).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
-	if n != 1 {
-		t.Errorf("applied %d migrations, want 1", n)
+	if n != len(files) {
+		t.Errorf("applied %d migrations, want %d", n, len(files))
+	}
+}
+
+// A token's stored prefix is what lets the interface tell two of an agent's
+// tokens apart. It must survive the round trip, and it must never be the
+// whole secret.
+func TestTokenPrefixRoundTrips(t *testing.T) {
+	db := open(t)
+	ctx := context.Background()
+	now := time.Now()
+
+	err := db.Write(ctx, func(q Queryer) error {
+		if err := InsertActor(ctx, q, model.Actor{
+			ID: "a1", Type: workflow.Agent, Name: "claude", CreatedAt: now,
+		}, ""); err != nil {
+			return err
+		}
+		return InsertToken(ctx, q, model.Token{
+			ID: "t1", ActorID: "a1", Name: "initial token",
+			Prefix: "cairn_7fJqK2", CreatedAt: now,
+		}, "a-hash")
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tokens, err := ListTokens(ctx, db.Read(), "a1")
+	if err != nil || len(tokens) != 1 {
+		t.Fatalf("ListTokens = %v, %v", tokens, err)
+	}
+	if tokens[0].Prefix != "cairn_7fJqK2" {
+		t.Errorf("prefix = %q", tokens[0].Prefix)
 	}
 }
 

@@ -82,6 +82,7 @@ type taskDetailDTO struct {
 type tokenDTO struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
+	Prefix     string     `json:"prefix"`
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at"`
 	RevokedAt  *time.Time `json:"revoked_at"`
@@ -154,7 +155,7 @@ func toDetail(d service.TaskDetail) taskDetailDTO {
 
 func toToken(t model.Token) tokenDTO {
 	return tokenDTO{
-		ID: t.ID, Name: t.Name, CreatedAt: t.CreatedAt,
+		ID: t.ID, Name: t.Name, Prefix: t.Prefix, CreatedAt: t.CreatedAt,
 		LastUsedAt: t.LastUsedAt, RevokedAt: t.RevokedAt,
 	}
 }

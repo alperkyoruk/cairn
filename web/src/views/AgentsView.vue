@@ -61,10 +61,12 @@ async function revoke(id) {
   }
 }
 
-// Only a hash is stored, so there is nothing of the secret to show. What
-// identifies a token here is the agent it belongs to and when it was issued.
+// Only a hash of the secret is stored, plus its opening characters. That is
+// enough to match a row here against the token sitting in an agent's config,
+// which is the question this column exists to answer -- and the tail stays
+// unrecoverable, which is the point of hashing it.
 function elide(token) {
-  return `${token.name} · issued`
+  return token.prefix ? `${token.prefix}…` : token.name
 }
 
 onMounted(load)
@@ -123,7 +125,10 @@ onMounted(load)
               :class="{ unused: !token.last_used_at, revoked: token.revoked_at }"
             >
               <td class="c-agent">{{ token.agent }}</td>
-              <td class="c-token mono">{{ elide(token) }} <RelativeTime :value="token.created_at" /> ago</td>
+              <td class="c-token">
+                <span class="mono">{{ elide(token) }}</span>
+                <span class="tname">{{ token.name }}</span>
+              </td>
               <td class="c-used">
                 <RelativeTime v-if="token.last_used_at" :value="token.last_used_at" />
                 <span v-else class="faint">never</span>
@@ -216,6 +221,7 @@ td { padding: var(--s-3) var(--s-2); font-size: 12.5px; vertical-align: middle; 
 
 .c-agent { width: 150px; }
 .c-token { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tname { margin-left: var(--s-3); color: var(--text-faint); }
 .c-used { width: 100px; }
 .c-act { width: 90px; text-align: right; }
 

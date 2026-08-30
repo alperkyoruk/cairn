@@ -213,7 +213,8 @@ func (s *Service) CreateAgent(ctx context.Context, actor Actor, name string) (mo
 			return internal(err)
 		}
 		return store.InsertToken(ctx, q, model.Token{
-			ID: id.New(), ActorID: agent.ID, Name: "initial token", CreatedAt: s.now(),
+			ID: id.New(), ActorID: agent.ID, Name: "initial token",
+			Prefix: displayPrefix(secret), CreatedAt: s.now(),
 		}, hashSecret(secret))
 	})
 	if err != nil {
@@ -288,7 +289,8 @@ func (s *Service) issue(ctx context.Context, actorID, name string, expires *time
 	}
 	err = s.write(ctx, func(q store.Queryer) error {
 		return store.InsertToken(ctx, q, model.Token{
-			ID: id.New(), ActorID: actorID, Name: name, CreatedAt: s.now(), ExpiresAt: expires,
+			ID: id.New(), ActorID: actorID, Name: name, Prefix: displayPrefix(secret),
+			CreatedAt: s.now(), ExpiresAt: expires,
 		}, hashSecret(secret))
 	})
 	if err != nil {
@@ -307,6 +309,19 @@ func newSecret() (string, error) {
 		return "", err
 	}
 	return tokenPrefix + base64.RawURLEncoding.EncodeToString(b[:]), nil
+}
+
+// displayPrefix returns the part of a token safe to keep in the clear: the
+// scheme prefix and six characters of the random body. What remains secret is
+// still 32 bytes of entropy minus those six characters, which is not a
+// meaningful reduction; what is gained is a handle for telling two of an
+// agent's tokens apart.
+func displayPrefix(secret string) string {
+	const shown = len(tokenPrefix) + 6
+	if len(secret) < shown {
+		return secret
+	}
+	return secret[:shown]
 }
 
 // hashSecret digests a token. Tokens carry 256 bits of entropy, so a plain hash

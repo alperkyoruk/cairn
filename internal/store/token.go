@@ -16,9 +16,9 @@ import (
 // itself is shown to the caller once and never persisted.
 func InsertToken(ctx context.Context, q Queryer, t model.Token, hash string) error {
 	_, err := q.ExecContext(ctx,
-		`INSERT INTO token (id, actor_id, name, token_hash, created_at, expires_at)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		t.ID, t.ActorID, t.Name, hash, clock.Format(t.CreatedAt), storeTime(t.ExpiresAt))
+		`INSERT INTO token (id, actor_id, name, token_hash, prefix, created_at, expires_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.ActorID, t.Name, hash, t.Prefix, clock.Format(t.CreatedAt), storeTime(t.ExpiresAt))
 	if err != nil {
 		return fmt.Errorf("insert token: %w", err)
 	}
@@ -90,7 +90,7 @@ func RevokeTokensFor(ctx context.Context, q Queryer, actorID string, at time.Tim
 
 func ListTokens(ctx context.Context, q Queryer, actorID string) ([]model.Token, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT id, actor_id, name, created_at, expires_at, last_used_at, revoked_at
+		SELECT id, actor_id, name, prefix, created_at, expires_at, last_used_at, revoked_at
 		FROM token WHERE actor_id = ? ORDER BY created_at`, actorID)
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func ListTokens(ctx context.Context, q Queryer, actorID string) ([]model.Token, 
 		var t model.Token
 		var created string
 		var expires, lastUsed, revoked sql.NullString
-		if err := rows.Scan(&t.ID, &t.ActorID, &t.Name, &created, &expires, &lastUsed, &revoked); err != nil {
+		if err := rows.Scan(&t.ID, &t.ActorID, &t.Name, &t.Prefix, &created, &expires, &lastUsed, &revoked); err != nil {
 			return nil, err
 		}
 		t.CreatedAt = parseTime(created)

@@ -1,9 +1,12 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { api } from '../api.js'
 import TaskTable from '../components/TaskTable.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 
 const props = defineProps({ slug: String })
+const router = useRouter()
 
 const project = ref(null)
 const rows = ref([])
@@ -13,6 +16,8 @@ const ready = ref(false)
 
 const adding = ref(false)
 const draft = ref({ title: '', body: '' })
+const confirming = ref(false)
+const blocker = ref('')
 
 const blocked = computed(() => rows.value.filter((r) => r.task.status === 'blocked').length)
 
@@ -46,6 +51,30 @@ async function addTask() {
     await load()
   } catch (err) {
     failure.value = err.message
+  }
+}
+
+// Deleting a project that still holds tasks is refused by the server rather
+// than cascading, so there is no point opening a confirmation for it: say why
+// instead, next to the button that failed.
+function askDelete() {
+  blocker.value = ''
+  if (rows.value.length) {
+    const n = rows.value.length
+    blocker.value = `${project.value.slug} still holds ${n} ${n === 1 ? 'task' : 'tasks'}. `
+      + `Delete them first — Cairn will not take a project's work with it.`
+    return
+  }
+  confirming.value = true
+}
+
+async function removeProject() {
+  try {
+    await api.deleteProject(project.value.slug)
+    router.push('/')
+  } catch (err) {
+    failure.value = err.message
+    confirming.value = false
   }
 }
 
@@ -104,6 +133,23 @@ watch(() => props.slug, load)
       <p class="prose">Everything you file starts in backlog and waits for you to queue it.</p>
       <button class="btn btn-primary" @click="adding = true">New task</button>
     </div>
+
+    <footer class="rule-top">
+      <button class="btn btn-ghost btn-danger" @click="askDelete">Delete project</button>
+      <p v-if="blocker" class="blocker">{{ blocker }}</p>
+    </footer>
+
+    <ConfirmDialog
+      :open="confirming"
+      :title="`Delete ${project.slug}?`"
+      :confirm-word="project.slug"
+      @cancel="confirming = false"
+      @confirm="removeProject"
+    >
+      This project holds no tasks, so nothing is destroyed with it. The
+      reference prefix <code class="mono">{{ project.slug }}</code> becomes
+      available again afterwards.
+    </ConfirmDialog>
   </div>
 </template>
 
@@ -139,6 +185,9 @@ h1 { font-size: var(--t-xl); font-weight: 500; letter-spacing: -0.01em; }
 .newtask textarea { min-height: 64px; }
 .foot { display: flex; align-items: center; gap: var(--s-3); }
 .note { margin-left: auto; font-size: var(--t-sm); color: var(--text-dim); }
+
+footer { margin-top: var(--s-12); padding-top: var(--s-6); }
+.blocker { font-size: var(--t-sm); color: var(--blocked); margin-top: var(--s-2); max-width: 60ch; }
 
 .empty { padding: var(--s-12) 14px; max-width: 54ch; }
 .lead { font-size: var(--t-md); color: var(--text-muted); margin-bottom: var(--s-3); }

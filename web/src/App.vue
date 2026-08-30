@@ -1,16 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { session, loadSession } from './session.js'
-import { useTheme } from './composables/useTheme.js'
 import NavBar from './components/NavBar.vue'
 import SetupView from './views/SetupView.vue'
 import LoginView from './views/LoginView.vue'
 
 const failure = ref('')
-const { apply } = useTheme()
 
 onMounted(async () => {
-  apply()
   try {
     await loadSession()
   } catch (err) {

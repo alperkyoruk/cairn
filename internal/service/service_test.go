@@ -499,3 +499,51 @@ func TestProjectsWithTasksAreNotDeletedByAccident(t *testing.T) {
 		t.Fatalf("empty project would not delete: %v", err)
 	}
 }
+
+// The stored prefix has to match the secret the human was shown, or it cannot
+// do its job of telling one of an agent's tokens from another. And it has to
+// stay a prefix: storing the whole thing would undo the point of hashing it.
+func TestTokenPrefixIdentifiesTheSecretWithoutRevealingIt(t *testing.T) {
+	f := newFixture(t)
+
+	agent, secret, err := f.svc.CreateAgent(f.ctx, f.human, "codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := f.svc.IssueToken(f.ctx, f.human, agent.ID, "laptop")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tokens, err := f.svc.ListTokens(f.ctx, f.human, agent.ID)
+	if err != nil || len(tokens) != 2 {
+		t.Fatalf("ListTokens = %v, %v", tokens, err)
+	}
+
+	for _, tc := range []struct{ name, secret string }{{"initial token", secret}, {"laptop", second}} {
+		var found string
+		for _, token := range tokens {
+			if token.Name == tc.name {
+				found = token.Prefix
+			}
+		}
+		if found == "" {
+			t.Fatalf("no token named %q", tc.name)
+		}
+		if !strings.HasPrefix(tc.secret, found) {
+			t.Errorf("stored prefix %q is not a prefix of the secret it was minted from", found)
+		}
+		if len(found) >= len(tc.secret) {
+			t.Errorf("stored prefix %q is the whole secret", found)
+		}
+		// Long enough to be worth showing: the scheme plus six characters.
+		if len(found) != len(tokenPrefix)+6 {
+			t.Errorf("prefix %q is %d chars, want %d", found, len(found), len(tokenPrefix)+6)
+		}
+	}
+
+	// The two tokens must actually be distinguishable, which is the point.
+	if tokens[0].Prefix == tokens[1].Prefix {
+		t.Error("two tokens for the same agent share a prefix")
+	}
+}

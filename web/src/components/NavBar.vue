@@ -1,10 +1,7 @@
 <script setup>
 import CairnMark from './icons/CairnMark.vue'
-import ThemeMoon from './icons/ThemeMoon.vue'
-import { useTheme } from '../composables/useTheme.js'
 
 defineProps({ actor: Object })
-const { theme, cycle } = useTheme()
 </script>
 
 <template>
@@ -16,10 +13,6 @@ const { theme, cycle } = useTheme()
 
     <RouterLink to="/" class="link">Board</RouterLink>
     <RouterLink to="/agents" class="link">Agents</RouterLink>
-
-    <button class="btn btn-icon" :title="`Theme: ${theme}`" @click="cycle">
-      <ThemeMoon />
-    </button>
 
     <!-- A label, not a menu. There is nothing behind it. -->
     <span class="who">{{ actor?.name }}</span>
@@ -48,5 +41,5 @@ const { theme, cycle } = useTheme()
 .link:hover { color: var(--accent); }
 .link.router-link-exact-active { color: var(--accent); }
 
-.who { font-size: 12.5px; color: var(--text-dim); }
+.who { font-size: 12.5px; color: var(--text-dim); margin-left: var(--s-2); }
 </style>

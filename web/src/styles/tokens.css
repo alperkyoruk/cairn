@@ -1,5 +1,10 @@
-/* cairn tokens. dark is the authored theme; light overrides
-   the ground and ink groups only — the rest is hue-stable. */
+/* cairn tokens.
+ *
+ * Dark is the only theme. The handoff scaffolded a light one for later, but
+ * there is no light palette to switch to, and a toggle that visibly does
+ * nothing is worse than no toggle -- so neither ships. Adding light later means
+ * overriding the ground and ink groups here and nothing else: the roles, type,
+ * space and radii are all hue-stable. */
 :root {
   color-scheme: dark;
 
@@ -45,7 +50,3 @@
 }
 
 @media (prefers-reduced-motion: reduce) { :root { --motion: 0s; } }
-
-/* Light is deliberately unstyled: the design defers it, and only the ground
-   and ink groups will need overriding when it lands. The toggle is wired now
-   so the plumbing is not the thing that has to be built later. */
