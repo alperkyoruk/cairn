@@ -50,7 +50,7 @@ onMounted(load)
           </template>
         </p>
       </div>
-      <span class="sort mono">most recently touched first</span>
+      <span class="sort mono">open first · most recently touched</span>
     </header>
 
     <TaskTable v-if="rows.length" :rows="rows" :agents="agents" />

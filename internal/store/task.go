@@ -98,7 +98,8 @@ func DeleteTask(ctx context.Context, q Queryer, id string) error {
 func ListTasksByProject(ctx context.Context, q Queryer, projectID string) ([]model.Task, error) {
 	rows, err := q.QueryContext(ctx,
 		`SELECT `+taskColumns+` FROM task t JOIN project p ON p.id = t.project_id
-		 WHERE t.project_id = ? ORDER BY t.updated_at DESC`, projectID)
+		 WHERE t.project_id = ?
+		 ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END, t.updated_at DESC, t.id DESC`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -213,11 +214,16 @@ func Board(ctx context.Context, q Queryer) ([]model.BoardRow, error) {
 		JOIN project p        ON p.id = t.project_id
 		LEFT JOIN task_state s ON s.task_id = t.id
 		LEFT JOIN actor a      ON a.id = s.updated_by
-		-- Timestamps are millisecond precision, so two tasks touched in the same
-		-- millisecond tie. Ids are UUIDv7 and therefore time-ordered, which makes
-		-- them the correct tiebreak: descending keeps "most recent first" true
-		-- all the way down.
-		ORDER BY t.updated_at DESC, t.id DESC`)
+		-- Done sinks below everything else. Finishing a task is a touch, so
+		-- most-recently-touched alone floats your freshest completed work above
+		-- the thing you are actually stuck on. Nothing is hidden and there is no
+		-- filter; done work is simply last.
+		--
+		-- Then: timestamps are millisecond precision, so two tasks touched in the
+		-- same millisecond tie. Ids are UUIDv7 and therefore time-ordered, which
+		-- makes them the correct tiebreak -- descending keeps "most recent first"
+		-- true all the way down.
+		ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END, t.updated_at DESC, t.id DESC`)
 	if err != nil {
 		return nil, err
 	}

@@ -247,3 +247,62 @@ func TestTaskNumbersAreSequentialPerProject(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Finishing a task is a touch, so ordering by recency alone would put freshly
+// completed work above the thing you are stuck on. Done sinks instead --
+// without hiding anything, and without a filter.
+func TestBoardSinksDoneBelowOpenWork(t *testing.T) {
+	db := open(t)
+	ctx := context.Background()
+	base := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+
+	err := db.Write(ctx, func(q Queryer) error {
+		if err := InsertProject(ctx, q, model.Project{ID: "p1", Slug: "cairn", Name: "Cairn", CreatedAt: base}); err != nil {
+			return err
+		}
+		// The done task is the most recently touched of the three.
+		for i, tc := range []struct {
+			id     string
+			status workflow.Status
+			offset time.Duration
+		}{
+			{"t1", workflow.Done, 2 * time.Hour},
+			{"t2", workflow.Blocked, 1 * time.Hour},
+			{"t3", workflow.Queue, 0},
+		} {
+			at := base.Add(tc.offset)
+			if err := InsertTask(ctx, q, model.Task{
+				ID: tc.id, ProjectID: "p1", Number: i + 1, Title: tc.id,
+				Status: tc.status, CreatedAt: base, UpdatedAt: at,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := Board(ctx, db.Read())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var order []string
+	for _, r := range rows {
+		order = append(order, r.Task.ID+":"+string(r.Task.Status))
+	}
+	want := "t2:blocked t3:queue t1:done"
+	if got := strings.Join(order, " "); got != want {
+		t.Errorf("board order = %q, want %q", got, want)
+	}
+
+	// The same rule applies inside a project.
+	tasks, err := ListTasksByProject(ctx, db.Read(), "p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 3 || tasks[2].Status != workflow.Done {
+		t.Errorf("project list does not sink done: %v", tasks)
+	}
+}
