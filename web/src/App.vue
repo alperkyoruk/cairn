@@ -35,5 +35,13 @@ onMounted(async () => {
 
 <style scoped>
 .boot { margin: var(--s-12); }
-main { max-width: 1280px; }
+
+/* The nav paints its rule edge-to-edge, but its contents are constrained to
+   the same measure as the page below it -- otherwise the username drifts to
+   the far corner of a wide monitor while the table it belongs to stays at
+   1280px, and the two stop looking like one screen. */
+main {
+  max-width: 1280px;
+  margin: 0 auto;
+}
 </style>

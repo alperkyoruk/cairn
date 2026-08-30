@@ -44,8 +44,14 @@ async function submit() {
 </template>
 
 <style scoped>
-.gate { display: flex; padding: 64px 56px; }
-.panel-plain { min-height: 340px; max-width: 300px; }
+.gate {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 64px 56px;
+}
+.panel-plain { width: 100%; max-width: 300px; }
 .mark { color: var(--accent); margin-bottom: var(--s-6); display: block; }
 h1 { font-size: 22px; font-weight: 500; letter-spacing: -0.01em; margin-bottom: var(--s-8); }
 .sp { margin-top: var(--s-4); }
