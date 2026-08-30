@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cairn — an issue tracker that treats the agent as a first-class actor</title>
+<meta name="description" content="A self-hosted issue tracker built for coding agents as much as for people. Every task carries a note for whoever picks it up next. Single Go binary, SQLite, MCP built in.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='%239184d9' d='M8 1.4 10.4 4H5.6L8 1.4Z'/><path fill='%239184d9' d='M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z'/><path fill='%239184d9' d='M2.2 9h11.6l1.6 3.4H.6L2.2 9Z'/></svg>">
+<meta property="og:title" content="Cairn">
+<meta property="og:description" content="An issue tracker that treats the coding agent as a first-class actor.">
+<meta property="og:type" content="website">
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#161826; --surface:#1c1e2c; --surface-raised:#232532;
+  --text:#e9e9ed; --text-muted:#b2b6ca; --text-dim:#75798c; --text-faint:#595d6c;
+  --rule:rgba(233,233,237,.08); --rule-strong:rgba(233,233,237,.16);
+  --accent:#9184d9; --accent-tint:rgba(145,132,217,.14);
+  --blocked:oklch(0.72 0.105 70); --blocked-tint:oklch(0.72 0.105 70 / 0.13);
+  --font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --r-sm:4px; --r-md:8px; --r-lg:14px;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+h1,h2,h3,p,ul,ol,figure{margin:0}
+code{font-family:var(--mono);font-size:.9em}
+::selection{background:rgba(145,132,217,.3)}
+
+.wrap{max-width:980px;margin:0 auto;padding:0 24px}
+section{padding:88px 0;border-top:1px solid var(--rule)}
+section:first-of-type{border-top:0}
+
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:20px}
+h2{font-size:30px;line-height:1.25;letter-spacing:-.02em;font-weight:500;margin-bottom:16px;text-wrap:balance}
+.lede{color:var(--text-muted);max-width:64ch;text-wrap:pretty}
+
+/* hero */
+header{padding:76px 0 0}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:44px}
+.brand svg{width:22px;height:22px;fill:var(--accent)}
+.brand span{font-size:20px;letter-spacing:-.01em}
+h1{font-size:clamp(34px,5.4vw,54px);line-height:1.1;letter-spacing:-.03em;font-weight:500;max-width:19ch;text-wrap:balance}
+.tagline{margin-top:22px;font-size:19px;color:var(--text-muted);max-width:60ch;text-wrap:pretty}
+.thesis{margin-top:18px;color:var(--text-dim);max-width:60ch;text-wrap:pretty}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 17px;border-radius:var(--r-sm);border:1px solid var(--rule-strong);color:var(--text-muted);font-size:14px;transition:all .12s ease-out}
+.btn:hover{text-decoration:none;color:var(--text);border-color:var(--text-faint)}
+.btn-primary{border-color:var(--accent);color:var(--accent)}
+.btn-primary:hover{background:var(--accent-tint);color:var(--accent);border-color:var(--accent)}
+
+figure{margin:56px 0 0}
+figure img{width:100%;display:block;border-radius:var(--r-lg);box-shadow:0 0 0 1px #3f424d,0 18px 50px rgba(0,0,0,.5)}
+figcaption{margin-top:14px;font-size:13px;color:var(--text-faint);text-wrap:pretty}
+
+/* two records */
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:40px}
+.rec{background:var(--surface-raised);border-radius:var(--r-lg);padding:24px;box-shadow:0 0 0 1px #3f424d}
+.rec.state{box-shadow:0 0 0 1px #3f424d,inset 2px 0 0 var(--accent)}
+.rec h3{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.rec .sub{font-family:var(--mono);font-size:11.5px;color:var(--text-faint);margin-bottom:18px}
+.rec p{font-size:14.5px;color:var(--text-muted);text-wrap:pretty}
+.fieldlist{margin-top:16px;display:flex;flex-direction:column;gap:9px}
+.fieldlist code{display:block;font-size:11.5px;letter-spacing:.05em;color:var(--text-dim)}
+
+/* the refusal */
+.refusal{margin-top:36px;background:var(--surface-raised);border-radius:var(--r-lg);padding:26px 28px;box-shadow:0 0 0 1px #3f424d}
+.refusal .who{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:12px}
+.refusal blockquote{margin:0;font-family:var(--mono);font-size:14px;line-height:1.65;color:var(--blocked);text-wrap:pretty}
+
+/* machine */
+.machine{margin-top:36px;font-family:var(--mono);font-size:14px;color:var(--text-muted);background:var(--surface);border-radius:var(--r-md);padding:24px 28px;overflow-x:auto}
+.machine .b{color:var(--blocked)}
+.machine .a{color:var(--accent)}
+.locks{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+.lock{border-left:2px solid var(--accent);padding-left:16px}
+.lock code{display:block;font-size:13px;color:var(--text);margin-bottom:4px}
+.lock span{font-size:14px;color:var(--text-dim)}
+
+/* code */
+pre{background:var(--surface);border-radius:var(--r-md);padding:18px 20px;overflow-x:auto;margin:22px 0 0;font-family:var(--mono);font-size:13.5px;line-height:1.7;color:var(--text-muted)}
+pre .c{color:var(--text-faint)}
+pre .k{color:var(--accent)}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:44px;margin-top:36px}
+.cols h3{font-size:16px;font-weight:500;margin-bottom:10px}
+.cols p{font-size:14.5px;color:var(--text-dim);text-wrap:pretty}
+
+.notlist{margin-top:26px;color:var(--text-dim);font-size:14.5px;line-height:2;max-width:70ch;text-wrap:pretty}
+.notlist b{color:var(--text-muted);font-weight:400}
+
+footer{padding:52px 0 72px;border-top:1px solid var(--rule);color:var(--text-faint);font-size:13.5px;display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+footer a{color:var(--text-dim)}
+
+@media (max-width:760px){
+  section{padding:60px 0}
+  .pair,.cols,.locks{grid-template-columns:1fr}
+  .cols{gap:28px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.4 10.4 4H5.6L8 1.4Z"/><path d="M4.6 5.2h6.8l1.5 2.6H3.1l1.5-2.6Z"/><path d="M2.2 9h11.6l1.6 3.4H.6L2.2 9Z"/></svg>
+      <span>cairn</span>
+    </div>
+
+    <h1>A stack of stones for whoever picks it up next</h1>
+
+    <p class="tagline">
+      An issue tracker that treats the coding agent as a first-class actor —
+      not as an API bolted onto a tracker designed for people.
+    </p>
+
+    <p class="thesis">
+      A cairn is a stack of stones left on a trail so whoever comes next knows the
+      way. Every task here carries a note for whoever picks it up, human or agent.
+    </p>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/alperkyoruk/cairn">View on GitHub</a>
+      <a class="btn" href="#start">Run it in three commands</a>
+    </div>
+
+    <figure>
+      <img src="img/board.png" alt="The Cairn board: one row per task across every project, showing project, task, status, next step, who touched it last, and how long ago." width="2560" height="840">
+      <figcaption>
+        The whole product in one screen. Sorted most-recently-touched first, read-only,
+        no filters. The accent mark on the left edge of the first row means it is in
+        review — which is to say, waiting on you.
+      </figcaption>
+    </figure>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Why</p>
+    <h2>Agent support that is in the schema, not in an adapter</h2>
+    <p class="lede">
+      Every tracker now has an MCP server. Almost all of them are the same tracker
+      as before with a thin API bolted on the side, so the interesting part — what
+      the agent actually did, what it tried, where it got stuck — ends up as prose
+      in a comment box, if it is recorded at all.
+    </p>
+    <p class="lede" style="margin-top:18px">
+      Cairn inverts that. Agent behaviour lives in the schema and in the business
+      rules, and the MCP server is in the same binary as the web interface, calling
+      the same service layer. There is no separate agent API to drift out of sync,
+      and no second permission model to keep honest.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">The idea</p>
+    <h2>Every task carries two records, and they do different jobs</h2>
+    <p class="lede">
+      Confusing them is the failure mode. One is the note on top of the cairn; the
+      other is the trail behind it. The interface gives them opposite geometry so a
+      reader never mistakes one for the other.
+    </p>
+
+    <div class="pair">
+      <div class="rec state">
+        <h3>state</h3>
+        <p class="sub">one record · overwritten in place</p>
+        <p>
+          A single summary, always current. Exactly one per task, enforced by the
+          primary key. Write it as though the next reader knows nothing about what
+          you just did — because that is usually true.
+        </p>
+        <div class="fieldlist">
+          <code>where_i_left_off</code>
+          <code>next_step</code>
+          <code>blocked_on</code>
+        </div>
+      </div>
+
+      <div class="rec">
+        <h3>worklog</h3>
+        <p class="sub">append-only · never edited</p>
+        <p>
+          Every attempt, kept forever, with the status change it accompanied. This
+          is where the dead ends live, so the next agent does not walk down them
+          again.
+        </p>
+        <div class="fieldlist">
+          <code>what_was_tried</code>
+          <code>outcome</code>
+        </div>
+      </div>
+    </div>
+
+    <p class="lede" style="margin-top:34px">
+      <b style="color:var(--text);font-weight:500">An agent cannot leave a task without writing state.</b>
+      Not a convention or a lint rule: the only function that writes a task's status
+      takes the note as an argument, and status, state and worklog are written in one
+      transaction or not at all. There is no code path that moves a task and forgets.
+    </p>
+
+    <figure>
+      <img src="img/task.png" alt="A blocked task in Cairn, showing the state panel with blocked_on promoted above the other fields, and the append-only worklog below it as a dated rail." width="2560" height="1400">
+      <figcaption>
+        A blocked task. <code>blocked_on</code> is promoted above everything else,
+        because on a blocked task it is the only sentence that matters. Below it, the
+        worklog: every attempt an agent made, including the ones that failed.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">The rules</p>
+    <h2>Two decisions an agent is never allowed to make</h2>
+
+    <div class="machine">
+      backlog → queue → <span class="a">active</span> → review → done<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="b">blocked</span>
+    </div>
+
+    <div class="locks">
+      <div class="lock">
+        <code>backlog → queue</code>
+        <span>Only the human decides what gets worked on.</span>
+      </div>
+      <div class="lock">
+        <code>review → done</code>
+        <span>Only the human decides something is finished.</span>
+      </div>
+    </div>
+
+    <p class="lede" style="margin-top:32px">
+      So an agent that finishes a piece of work moves it to review and says what you
+      should check. A task sitting in review is always waiting on you — which is why
+      the board marks those rows and counts them, without needing a filter.
+    </p>
+
+    <div class="refusal">
+      <p class="who">What an agent sees when it tries anyway</p>
+      <blockquote>only the human marks work done; leave the task in review, and make sure state.next_step says what they should check</blockquote>
+    </div>
+
+    <p class="lede" style="margin-top:26px">
+      Refusals are written to be acted on. An agent reads an error the way a person
+      reads documentation, so every one of them says what happened, why, and what to
+      do instead. Every task read also returns the moves that actor may legally make
+      from where the task is now — so a well-behaved agent never has to guess.
+    </p>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <p class="eyebrow">Running it</p>
+    <h2>One binary, one file, no dependencies to install</h2>
+    <p class="lede">
+      The Vue frontend is compiled into the Go binary. SQLite is a pure-Go port, so
+      there is no libc to link and the Docker image is built <code>FROM scratch</code>
+      — 17&nbsp;MB, no base image, no shell.
+    </p>
+
+<pre><span class="c"># build it</span>
+make build
+
+<span class="c"># run it</span>
+./cairn
+
+<span class="c"># then open http://127.0.0.1:7777 and pick a username</span></pre>
+
+    <div class="cols">
+      <div>
+        <h3>Connect an agent</h3>
+        <p>
+          Register the agent in the web interface, copy the token, and point your
+          client at <code>/mcp</code>. It speaks MCP over streamable HTTP in the same
+          process that serves the browser.
+        </p>
+<pre>claude mcp add --scope user \
+  --transport http cairn \
+  http://127.0.0.1:7777/mcp \
+  --header <span class="k">"Authorization: Bearer cairn_…"</span></pre>
+      </div>
+      <div>
+        <h3>Eight tools</h3>
+        <p>
+          <code>board</code>, <code>list_projects</code>, <code>list_tasks</code>,
+          <code>get_task</code>, <code>create_task</code>,
+          <code>transition_task</code>, <code>write_state</code>,
+          <code>append_worklog</code>.
+        </p>
+        <p style="margin-top:12px">
+          The rules arrive as server instructions on connect, so an agent knows what
+          it may and may not do before it makes a single call.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Scope</p>
+    <h2>What it deliberately is not</h2>
+    <p class="lede">
+      Cairn is for one person and their agents. There is nobody to notify, nobody to
+      assign to, and nobody to share with — so none of that exists, and none of it is
+      coming. This list is closed, not a roadmap:
+    </p>
+    <p class="notlist">
+      <b>Gantt</b> · <b>calendar view</b> · <b>saved views</b> · <b>due dates</b> ·
+      <b>reminders</b> · <b>recurring tasks</b> · <b>labels</b> · <b>priorities</b> ·
+      <b>estimates</b> · <b>sprints</b> · <b>milestones</b> · <b>attachments</b> ·
+      <b>comments</b> · <b>subtasks</b> · <b>dependencies</b> · <b>CalDAV</b> ·
+      <b>SMTP</b> · <b>notifications</b> · <b>mobile apps</b> ·
+      <b>teams, roles, invitations, sharing</b>
+    </p>
+    <p class="lede" style="margin-top:26px">
+      What you get instead is a tracker small enough to read end to end, that keeps
+      one promise properly: whoever picks a task up next — you tomorrow, or an agent
+      in five minutes — finds a note saying where the work stands.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;width:100%">
+    <span>Apache-2.0</span>
+    <a href="https://github.com/alperkyoruk/cairn">github.com/alperkyoruk/cairn</a>
+    <a href="https://github.com/alperkyoruk/cairn/issues">Issues</a>
+    <span style="margin-left:auto">Self-hosted. Your data stays on your machine.</span>
+  </div>
+</footer>
+
+</body>
+</html>
