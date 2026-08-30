@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alperkyoruk/cairn/internal/service"
 )
@@ -366,4 +367,92 @@ func TestRevokedTokenStopsWorkingImmediately(t *testing.T) {
 	resp = h.do("GET", "/api/board", nil, created.Token)
 	h.wantStatus(resp, http.StatusUnauthorized)
 	resp.Body.Close()
+}
+
+func TestSignInAttemptsAreThrottled(t *testing.T) {
+	h := newHarness(t)
+	h.setUp()
+
+	// Log out so the cookie is not doing the work.
+	resp := h.do("POST", "/api/logout", nil, "")
+	resp.Body.Close()
+
+	for i := 0; i < signInLimit; i++ {
+		resp := h.do("POST", "/api/login", map[string]string{
+			"username": "alper", "password": "wrong",
+		}, "")
+		h.wantStatus(resp, http.StatusUnauthorized)
+		resp.Body.Close()
+	}
+
+	// The next attempt is refused before the password is even checked, which is
+	// the point: the expensive part never runs.
+	resp = h.do("POST", "/api/login", map[string]string{
+		"username": "alper", "password": "correct-horse",
+	}, "")
+	h.wantStatus(resp, http.StatusTooManyRequests)
+	if resp.Header.Get("Retry-After") == "" {
+		t.Error("429 does not say when to come back")
+	}
+	var failure errorBody
+	h.decode(resp, &failure)
+	if failure.Error.Kind != "too_many_attempts" {
+		t.Errorf("error kind = %q", failure.Error.Kind)
+	}
+}
+
+// A correct password clears the record, so a person who mistypes a few times
+// and then gets it right is not left in a penalty box.
+func TestASuccessfulSignInClearsTheRecord(t *testing.T) {
+	h := newHarness(t)
+	h.setUp()
+	resp := h.do("POST", "/api/logout", nil, "")
+	resp.Body.Close()
+
+	for i := 0; i < signInLimit-1; i++ {
+		resp := h.do("POST", "/api/login", map[string]string{
+			"username": "alper", "password": "wrong",
+		}, "")
+		resp.Body.Close()
+	}
+
+	resp = h.do("POST", "/api/login", map[string]string{
+		"username": "alper", "password": "correct-horse",
+	}, "")
+	h.wantStatus(resp, http.StatusOK)
+	resp.Body.Close()
+
+	// Back to a full allowance.
+	for i := 0; i < signInLimit; i++ {
+		resp := h.do("POST", "/api/login", map[string]string{
+			"username": "alper", "password": "wrong",
+		}, "")
+		if resp.StatusCode == http.StatusTooManyRequests {
+			t.Fatalf("still throttled at attempt %d after a successful sign-in", i+1)
+		}
+		resp.Body.Close()
+	}
+}
+
+// The window has to actually roll, or a single bad afternoon locks the owner
+// out of their own tracker until they restart it.
+func TestTheThrottleWindowExpires(t *testing.T) {
+	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+	tr := newThrottle(3, 5*time.Minute)
+	tr.now = func() time.Time { return now }
+
+	for i := 0; i < 3; i++ {
+		tr.fail()
+	}
+	if tr.allow() {
+		t.Fatal("allowed a fourth attempt inside the window")
+	}
+	if tr.retryAfter() <= 0 {
+		t.Error("retryAfter should be positive while throttled")
+	}
+
+	now = now.Add(5*time.Minute + time.Second)
+	if !tr.allow() {
+		t.Error("still throttled after the window passed")
+	}
 }

@@ -41,7 +41,12 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if !s.signIn.allow() {
+		writeThrottled(w, s.signIn.retryAfter())
+		return
+	}
 	if _, err := s.svc.Setup(r.Context(), in.Username, in.Password); err != nil {
+		s.signIn.fail()
 		writeError(w, err)
 		return
 	}
@@ -64,11 +69,17 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	if !s.signIn.allow() {
+		writeThrottled(w, s.signIn.retryAfter())
+		return
+	}
 	secret, err := s.svc.Login(r.Context(), in.Username, in.Password)
 	if err != nil {
+		s.signIn.fail()
 		writeError(w, err)
 		return
 	}
+	s.signIn.succeed()
 	s.writeSession(w, r, secret)
 }
 

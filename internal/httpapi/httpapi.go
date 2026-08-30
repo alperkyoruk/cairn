@@ -21,11 +21,18 @@ import (
 // credential. One credential type, one lookup, one permission model.
 const sessionCookie = "cairn_session"
 
+// signInLimit is generous for one person and hostile to a guesser.
+const (
+	signInLimit  = 10
+	signInWindow = 5 * time.Minute
+)
+
 type Server struct {
 	svc    *service.Service
 	assets http.Handler
 	mux    *http.ServeMux
 	secure bool
+	signIn *throttle
 }
 
 type Option func(*Server)
@@ -36,7 +43,10 @@ type Option func(*Server)
 func WithSecureCookies(on bool) Option { return func(s *Server) { s.secure = on } }
 
 func New(svc *service.Service, assets http.Handler, opts ...Option) *Server {
-	s := &Server{svc: svc, assets: assets, mux: http.NewServeMux()}
+	s := &Server{
+		svc: svc, assets: assets, mux: http.NewServeMux(),
+		signIn: newThrottle(signInLimit, signInWindow),
+	}
 	for _, o := range opts {
 		o(s)
 	}
