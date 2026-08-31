@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { api } from '../api.js'
 import WarningTriangle from '../components/icons/WarningTriangle.vue'
 import RelativeTime from '../components/RelativeTime.vue'
@@ -20,9 +20,40 @@ async function load() {
   agents.value = list
   const rows = await Promise.all(list.map(async (agent) => {
     const issued = await api.tokens(agent.id)
-    return issued.map((token) => ({ ...token, agent: agent.name }))
+    return issued.map((token) => ({ ...token, agent: agent.name, agentId: agent.id }))
   }))
   tokens.value = rows.flat()
+}
+
+// Grouped by agent, not by token. A flat token list repeats the name once per
+// token, so an agent holding two reads as two agents with the same name -- and
+// there was nowhere to hang a per-agent action, which is why the only way to
+// get a token was to register somebody new.
+const byAgent = computed(() =>
+  agents.value.map((agent) => ({
+    ...agent,
+    tokens: tokens.value.filter((t) => t.agentId === agent.id),
+  })))
+
+// Issuing to an existing agent rather than creating one.
+//
+// Revoking used to be a one-way door: the register form is the only thing that
+// hands back a secret, and a duplicate name is refused, so revoking claude's
+// leaked token left the choice of inventing claude-2 -- orphaning the identity
+// on every worklog entry claude had ever written -- or calling the API by hand.
+async function issue(agent) {
+  failure.value = ''
+  busy.value = true
+  try {
+    const issued = await api.issueToken(agent.id, 'issued from the interface')
+    fresh.value = { agent: agent.name, token: issued.token }
+    copied.value = false
+    await load()
+  } catch (err) {
+    failure.value = err.message
+  } finally {
+    busy.value = false
+  }
 }
 
 async function create() {
@@ -104,44 +135,51 @@ onMounted(load)
           <button class="btn btn-ghost" @click="fresh = null">Done</button>
         </div>
 
-        <p v-if="!tokens.length" class="empty">
+        <p v-if="!agents.length" class="empty">
           No agents yet. Register one to give it a token.
         </p>
 
-        <table v-else>
-          <thead>
-            <tr>
-              <th class="c-agent">Agent</th>
-              <th class="c-token">Token</th>
-              <th class="c-used">Last used</th>
-              <th class="c-act"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="token in tokens"
-              :key="token.id"
-              class="rule-bottom"
-              :class="{ unused: !token.last_used_at, revoked: token.revoked_at }"
-            >
-              <td class="c-agent">{{ token.agent }}</td>
-              <td class="c-token">
-                <span class="mono">{{ elide(token) }}</span>
-                <span class="tname">{{ token.name }}</span>
-              </td>
-              <td class="c-used">
-                <RelativeTime v-if="token.last_used_at" :value="token.last_used_at" />
-                <span v-else class="faint">never</span>
-              </td>
-              <td class="c-act">
-                <button v-if="!token.revoked_at" class="btn btn-ghost" @click="revoke(token.id)">
-                  Revoke
-                </button>
-                <span v-else class="faint">revoked</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- One block per agent, because the agent is the thing that persists:
+             tokens come and go under it, and the identity on every worklog entry
+             it has ever written stays. -->
+        <section v-for="agent in byAgent" :key="agent.id" class="agent">
+          <div class="agent-head rule-bottom">
+            <span class="agent-name">{{ agent.name }}</span>
+            <button class="btn btn-ghost" :disabled="busy" @click="issue(agent)">
+              Issue token
+            </button>
+          </div>
+
+          <p v-if="!agent.tokens.length" class="faint none">
+            No tokens. Issue one to let it connect.
+          </p>
+
+          <table v-else>
+            <tbody>
+              <tr
+                v-for="token in agent.tokens"
+                :key="token.id"
+                class="rule-bottom"
+                :class="{ unused: !token.last_used_at, revoked: token.revoked_at }"
+              >
+                <td class="c-token">
+                  <span class="mono">{{ elide(token) }}</span>
+                  <span class="tname">{{ token.name }}</span>
+                </td>
+                <td class="c-used">
+                  <RelativeTime v-if="token.last_used_at" :value="token.last_used_at" />
+                  <span v-else class="faint">never</span>
+                </td>
+                <td class="c-act">
+                  <button v-if="!token.revoked_at" class="btn btn-ghost" @click="revoke(token.id)">
+                    Revoke
+                  </button>
+                  <span v-else class="faint">revoked</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
       </div>
 
       <aside class="register">
@@ -219,7 +257,18 @@ th {
 }
 td { padding: var(--s-3) var(--s-2); font-size: 12.5px; vertical-align: middle; }
 
-.c-agent { width: 150px; }
+/* The agent is the heading now, so the name is no longer a repeated column. */
+.agent { margin-bottom: var(--s-8); }
+.agent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-bottom: var(--s-3);
+}
+.agent-name { font-size: var(--t-md); }
+.none { font-size: 12.5px; padding: var(--s-3) 0; }
+
 .c-token { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tname { margin-left: var(--s-3); color: var(--text-faint); }
 .c-used { width: 100px; }
