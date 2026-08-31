@@ -25,7 +25,7 @@ type refIn struct {
 
 type projectIn struct {
 	Project string   `json:"project" jsonschema:"the project slug, like cairn"`
-	Status  []string `json:"status,omitempty" jsonschema:"restrict to these statuses; omit to get everything except done"`
+	Status  []string `json:"status,omitempty" jsonschema:"restrict to these statuses: backlog, queue, active, review, blocked, done. Omit to get everything except done"`
 	Limit   int      `json:"limit,omitempty" jsonschema:"maximum tasks to return; defaults to 50"`
 }
 
@@ -42,37 +42,58 @@ type createTaskIn struct {
 
 type transitionIn struct {
 	Ref           string `json:"ref" jsonschema:"the task to move, like cairn-12"`
-	To            string `json:"to" jsonschema:"the status to move it to: active, review, or blocked"`
-	WhereILeftOff string `json:"where_i_left_off" jsonschema:"what has actually been done, in enough detail that someone who was not here can carry on"`
+	To            string `json:"to" jsonschema:"the status to move it to: active, review, or blocked. queue and done are missing from this list because they are the human's: a task in backlog waits for them to queue it, and a task you move to review waits for them to mark it done"`
+	WhereILeftOff string `json:"where_i_left_off" jsonschema:"what has actually been done, in enough detail that someone who was not here can carry on. When you are claiming queued work, that is what you have read and understood; next_step is what you are about to do first"`
 	NextStep      string `json:"next_step" jsonschema:"the single next thing whoever picks this up should do"`
-	BlockedOn     string `json:"blocked_on,omitempty" jsonschema:"required when moving to blocked: exactly what you need in order to continue"`
-	WhatWasTried  string `json:"what_was_tried,omitempty" jsonschema:"what you attempted during this stretch of work. Required when leaving active for review or blocked, because that is the moment the attempt gets recorded or never does"`
+	BlockedOn     string `json:"blocked_on,omitempty" jsonschema:"required when moving to blocked, and only meaningful there: exactly what you need in order to continue"`
+	WhatWasTried  string `json:"what_was_tried,omitempty" jsonschema:"required when leaving active, for review or for blocked: what you attempted during this stretch of work, including what did not work. That moment is when the attempt gets recorded or never does"`
 	Outcome       string `json:"outcome,omitempty" jsonschema:"what happened, including failures worth not repeating"`
 }
 
+// write_state is the checkpoint tool, and unlike a transition it may write part
+// of the note: the two fields are optional in the schema and an omitted one
+// keeps what is already stored. An agent whose next step has not changed should
+// not have to restate it to record that it got further.
+//
+// The service still requires the note to end up whole, so the first write on a
+// task with nothing stored must supply both. That refusal comes from the service
+// and reads like Cairn ("state.next_step is empty; say what whoever picks this
+// up should do first") rather than from the schema validator.
 type writeStateIn struct {
 	Ref           string `json:"ref" jsonschema:"the task to leave a note on, like cairn-12"`
-	WhereILeftOff string `json:"where_i_left_off" jsonschema:"what has actually been done so far"`
-	NextStep      string `json:"next_step" jsonschema:"the single next thing to do"`
-	BlockedOn     string `json:"blocked_on,omitempty" jsonschema:"what is blocking progress, if anything; required while the task is blocked"`
+	WhereILeftOff string `json:"where_i_left_off,omitempty" jsonschema:"what has actually been done, in enough detail that someone who was not here can carry on. Leave it out to keep the note already on the task"`
+	NextStep      string `json:"next_step,omitempty" jsonschema:"the single next thing to do. Leave it out to keep the one already on the task"`
+	BlockedOn     string `json:"blocked_on,omitempty" jsonschema:"why the task is blocked. Only for a task already in blocked, where it is required: if you have just hit a blocker, move the task to blocked with transition_task instead, because a blocker recorded here on a task that is still active puts nothing on the board"`
 }
 
 type appendWorklogIn struct {
 	Ref          string `json:"ref" jsonschema:"the task this attempt belongs to, like cairn-12"`
-	WhatWasTried string `json:"what_was_tried" jsonschema:"what you attempted"`
-	Outcome      string `json:"outcome,omitempty" jsonschema:"what happened as a result"`
+	WhatWasTried string `json:"what_was_tried" jsonschema:"what you actually did this stretch, in enough detail that someone about to repeat it would recognise it. The approach, not the intention"`
+	Outcome      string `json:"outcome,omitempty" jsonschema:"what happened, including failures worth not repeating"`
 }
 
 // --- output -----------------------------------------------------------------
 
 type taskOut struct {
-	Ref       string `json:"ref"`
-	Project   string `json:"project"`
-	Title     string `json:"title"`
-	Status    string `json:"status"`
-	NextStep  string `json:"next_step,omitempty"`
+	Ref     string `json:"ref"`
+	Project string `json:"project"`
+	Title   string `json:"title"`
+	Status  string `json:"status"`
+
+	NextStep string `json:"next_step,omitempty"`
+	// BlockedOn rides alongside next_step rather than replacing it: on a blocked
+	// task next_step is usually empty and this holds the only sentence that
+	// matters, and an agent scanning a listing should not have to spend a
+	// get_task to find out what the blocker is.
+	BlockedOn string `json:"blocked_on,omitempty"`
+
 	UpdatedBy string `json:"updated_by,omitempty"`
 	UpdatedAt string `json:"updated_at"`
+
+	// CanMoveTo is what the connect instructions promise of every task read,
+	// and a listing is a task read. Without it an agent scanning for work it may
+	// claim either guesses or spends one get_task per row.
+	CanMoveTo []string `json:"can_move_to"`
 }
 
 type stateOut struct {
@@ -138,6 +159,13 @@ const defaultLimit = 50
 // recent entries are what stop an agent repeating the last attempt; the rest is
 // available by asking, and worklog_total always says how much there is.
 const defaultWorklogEntries = 10
+
+// writeEchoEntries is how much history a write answers with. One, because the
+// caller just wrote it: for append_worklog and transition_task that entry is
+// the one they made, which is a useful confirmation, and for write_state it is
+// a line of context. Everything else in the echo -- the status, can_move_to --
+// is what the write actually saves a round trip on.
+const writeEchoEntries = 1
 
 // openStatuses is everything except done -- the default for any listing,
 // because a finished task is rarely what an agent is looking for.
@@ -232,8 +260,9 @@ func (s *server) build() *mcp.Server {
 	bind(s, srv, &mcp.Tool{
 		Name:        "list_tasks",
 		Annotations: readOnly(),
-		Description: "Every task in one project, most recently touched first. Finished work is " +
-			"left out unless you ask for it by status.",
+		Description: "Every task in one project, most recently touched first, each with the " +
+			"note left on it -- the same rows board returns, narrowed to one project. Finished " +
+			"work is left out unless you ask for it by status.",
 	}, s.listTasks, summariseTasks)
 
 	bind(s, srv, &mcp.Tool{
@@ -252,7 +281,7 @@ func (s *server) build() *mcp.Server {
 			"what you were asked to do -- write it down rather than silently expanding your " +
 			"current task. It lands in backlog. You cannot queue it; the human decides what " +
 			"gets worked on.",
-	}, s.createTask, summariseDetail)
+	}, s.createTask, summariseWrite)
 
 	bind(s, srv, &mcp.Tool{
 		Name:        "transition_task",
@@ -269,7 +298,7 @@ func (s *server) build() *mcp.Server {
 			"Refused: backlog -> queue and review -> done. Those are the human's decisions. " +
 			"When your work is done, move it to review and say in next_step what they should " +
 			"check.",
-	}, s.transitionTask, summariseDetail)
+	}, s.transitionTask, summariseWrite)
 
 	bind(s, srv, &mcp.Tool{
 		Name:        "write_state",
@@ -277,7 +306,7 @@ func (s *server) build() *mcp.Server {
 		Description: "Overwrite the note on a task without moving it. Use this to checkpoint " +
 			"during a long piece of work, so that if you stop unexpectedly the task still " +
 			"says where things stand. It replaces the previous note rather than adding to it.",
-	}, s.writeState, summariseDetail)
+	}, s.writeState, summariseWrite)
 
 	bind(s, srv, &mcp.Tool{
 		Name:        "append_worklog",
@@ -285,7 +314,7 @@ func (s *server) build() *mcp.Server {
 		Description: "Record one attempt against a task, without moving it. The worklog is " +
 			"append-only and permanent. Record failures as readily as successes: an approach " +
 			"that did not work is the most useful thing you can leave for whoever tries next.",
-	}, s.appendWorklog, summariseDetail)
+	}, s.appendWorklog, summariseWrite)
 
 	return srv
 }
@@ -322,7 +351,20 @@ func summariseTasks(o tasksOut) string {
 	return line
 }
 
+// summariseDetail describes a task the caller asked to read. A history shorter
+// than the total is news there, because the caller wanted the history.
 func summariseDetail(o taskDetailOut) string {
+	return summarise(o, true)
+}
+
+// summariseWrite describes a task the caller just wrote to. The history is
+// deliberately short here and saying so on every checkpoint would report a
+// deliberate saving as a shortfall, so this one reports the count and stops.
+func summariseWrite(o taskDetailOut) string {
+	return summarise(o, false)
+}
+
+func summarise(o taskDetailOut, sayTrimmed bool) string {
 	line := fmt.Sprintf("%s is %s: %s", o.Ref, o.Status, o.Title)
 	if o.State != nil {
 		if o.State.BlockedOn != "" {
@@ -332,18 +374,43 @@ func summariseDetail(o taskDetailOut) string {
 		}
 	}
 	if o.WorklogTotal > 0 {
-		if len(o.Worklog) < o.WorklogTotal {
-			line += fmt.Sprintf(". Showing the last %d of %d worklog entries.", len(o.Worklog), o.WorklogTotal)
-		} else {
+		switch {
+		case sayTrimmed && len(o.Worklog) < o.WorklogTotal:
+			line += fmt.Sprintf(". Showing the last %d of %d worklog entries -- the abandoned "+
+				"approaches are usually among the older ones, so pass worklog_limit to read them.",
+				len(o.Worklog), o.WorklogTotal)
+		default:
 			line += fmt.Sprintf(". %d worklog entries.", o.WorklogTotal)
 		}
 	}
 	if len(o.CanMoveTo) > 0 {
 		line += fmt.Sprintf(" You can move it to: %s.", strings.Join(o.CanMoveTo, ", "))
 	} else {
-		line += " There is nothing you can move it to from here."
+		line += " " + nothingToMove(o.Status)
 	}
 	return line
+}
+
+// nothingToMove says who the task belongs to now, rather than only that it does
+// not belong to the caller.
+//
+// Three statuses leave an agent no move and the right answer differs in each,
+// but one sentence used to cover all three. An agent that reads "there is
+// nothing you can move it to" has been told it is stuck, which is
+// indistinguishable from having done everything right and handed the work over.
+// The expensive misreading is the third option it has: filing a near-duplicate
+// task, because filing is the one write it knows it is allowed.
+func nothingToMove(status string) string {
+	switch status {
+	case string(workflow.Backlog):
+		return "Nothing here is yours to move: only the human moves a task out of backlog, by queueing it."
+	case string(workflow.Review):
+		return "Nothing here is yours to move: it is with the human now, waiting to be marked done."
+	case string(workflow.Done):
+		return "This one is finished."
+	default:
+		return "Nothing here is yours to move."
+	}
 }
 
 // --- handlers ---------------------------------------------------------------
@@ -365,16 +432,7 @@ func (s *server) board(ctx context.Context, actor service.Actor, in boardIn) (ta
 	if err != nil {
 		return tasksOut{}, err
 	}
-	limit := limitOr(in.Limit)
-	rows, err := s.svc.Board(ctx, actor, service.BoardQuery{Statuses: statuses, Limit: limit})
-	if err != nil {
-		return tasksOut{}, err
-	}
-	out := tasksOut{Tasks: make([]taskOut, 0, len(rows)), Truncated: len(rows) == limit}
-	for _, row := range rows {
-		out.Tasks = append(out.Tasks, toTaskOut(row.Task, row.State))
-	}
-	return out, nil
+	return s.listing(ctx, actor, service.BoardQuery{Statuses: statuses, Limit: limitOr(in.Limit)})
 }
 
 func (s *server) listTasks(ctx context.Context, actor service.Actor, in projectIn) (tasksOut, error) {
@@ -386,14 +444,37 @@ func (s *server) listTasks(ctx context.Context, actor service.Actor, in projectI
 	if err != nil {
 		return tasksOut{}, err
 	}
-	limit := limitOr(in.Limit)
-	tasks, err := s.svc.ListTasks(ctx, actor, project.ID, service.BoardQuery{Statuses: statuses, Limit: limit})
+	return s.listing(ctx, actor, service.BoardQuery{
+		ProjectID: project.ID, Statuses: statuses, Limit: limitOr(in.Limit),
+	})
+}
+
+// listing is the one shape board and list_tasks share.
+//
+// It asks the store for one row more than the caller wanted and hands back at
+// most what they asked for: whether that extra row came back is the only honest
+// way to know something was left behind. Comparing the returned count against
+// the limit instead says
+// "truncated" whenever a listing happens to land exactly on it, which is most
+// often for the small explicit limits the flag exists to serve: an agent
+// sampling with limit 10 against any board that is not nearly empty is told to
+// raise the limit, does, and gets back the same rows.
+func (s *server) listing(ctx context.Context, actor service.Actor, q service.BoardQuery) (tasksOut, error) {
+	limit := q.Limit
+	if limit > 0 {
+		q.Limit = limit + 1
+	}
+	rows, err := s.svc.Board(ctx, actor, q)
 	if err != nil {
 		return tasksOut{}, err
 	}
-	out := tasksOut{Tasks: make([]taskOut, 0, len(tasks)), Truncated: len(tasks) == limit}
-	for _, t := range tasks {
-		out.Tasks = append(out.Tasks, toTaskOut(t, nil))
+	truncated := limit > 0 && len(rows) > limit
+	if truncated {
+		rows = rows[:limit]
+	}
+	out := tasksOut{Tasks: make([]taskOut, 0, len(rows)), Truncated: truncated}
+	for _, row := range rows {
+		out.Tasks = append(out.Tasks, toTaskOut(row))
 	}
 	return out, nil
 }
@@ -473,8 +554,15 @@ func (s *server) appendWorklog(ctx context.Context, actor service.Actor, in appe
 
 // detailOf is the read every write answers with, so a caller never has to make
 // a second round trip to see what it just did.
+//
+// It carries one worklog entry rather than get_task's ten. The echo is worth
+// keeping for can_move_to and the post-move status, which genuinely save a round
+// trip; the history is not, because the caller has just written it. write_state
+// exists to be a cheap mid-run checkpoint, and an agent checkpointing five times
+// through a long task was being sent five task reads it never asked for.
+// worklog_total still reports the real count, so nothing is hidden.
 func (s *server) detailOf(ctx context.Context, actor service.Actor, taskID string) (taskDetailOut, error) {
-	detail, err := s.svc.GetTask(ctx, actor, taskID, worklogQuery(0))
+	detail, err := s.svc.GetTask(ctx, actor, taskID, worklogQuery(writeEchoEntries))
 	if err != nil {
 		return taskDetailOut{}, err
 	}
@@ -504,13 +592,26 @@ func (s *server) project(ctx context.Context, actor service.Actor, slug string) 
 
 // --- shaping ----------------------------------------------------------------
 
-func toTaskOut(t model.Task, state *model.State) taskOut {
+func toTaskOut(row model.BoardRow) taskOut {
+	t := row.Task
 	out := taskOut{
 		Ref: t.Ref(), Project: t.ProjectSlug, Title: t.Title,
 		Status: string(t.Status), UpdatedAt: clock.Format(t.UpdatedAt),
+		CanMoveTo: statusStrings(row.CanMoveTo),
 	}
-	if state != nil {
-		out.NextStep, out.UpdatedBy = state.NextStep, state.UpdatedByName
+	if row.State != nil {
+		out.NextStep, out.BlockedOn = row.State.NextStep, row.State.BlockedOn
+		out.UpdatedBy = row.State.UpdatedByName
+	}
+	return out
+}
+
+// statusStrings keeps can_move_to the same shape everywhere it appears: an
+// array, empty rather than null when there are no moves.
+func statusStrings(in []workflow.Status) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		out = append(out, string(s))
 	}
 	return out
 }
@@ -521,7 +622,7 @@ func toDetailOut(d service.TaskDetail) taskDetailOut {
 		Body: d.Task.Body, Status: string(d.Task.Status),
 		Worklog:      make([]worklogOut, 0, len(d.Worklog)),
 		WorklogTotal: d.WorklogTotal,
-		CanMoveTo:    make([]string, 0, len(d.CanMoveTo)),
+		CanMoveTo:    statusStrings(d.CanMoveTo),
 	}
 	if d.State != nil {
 		out.State = &stateOut{
@@ -536,9 +637,6 @@ func toDetailOut(d service.TaskDetail) taskDetailOut {
 			WhatWasTried: e.WhatWasTried, Outcome: e.Outcome,
 			FromStatus: string(e.FromStatus), ToStatus: string(e.ToStatus),
 		})
-	}
-	for _, s := range d.CanMoveTo {
-		out.CanMoveTo = append(out.CanMoveTo, string(s))
 	}
 	return out
 }

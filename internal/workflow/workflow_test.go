@@ -143,8 +143,13 @@ func TestRequirements(t *testing.T) {
 		{Active, Blocked, Requirement{BlockedOn: true, WhatWasTried: true}},
 		// Resuming after a block clears the stale reason.
 		{Blocked, Active, Requirement{ClearsBlockedOn: true}},
-		// Rejecting work owes the agent a reason, and binds the human too.
-		{Review, Active, Requirement{NextStep: true, ClearsBlockedOn: true}},
+		// Rejecting work owes the agent a reason, and binds the human too -- but
+		// only a reason. Making them also restate what the agent did is what put
+		// a review comment on top of the agent's own account of the work.
+		{Review, Active, Requirement{NextStep: true, ClearsBlockedOn: true, InheritsWhereILeftOff: true}},
+		// Giving up on a blocked task ends the blocker as surely as resuming it
+		// does. Without this the task sits in backlog still claiming to be stuck.
+		{Blocked, Backlog, Requirement{ClearsBlockedOn: true}},
 		// The human's own decisions ask nothing.
 		{Backlog, Queue, Requirement{}},
 		{Review, Done, Requirement{}},

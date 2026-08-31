@@ -24,17 +24,14 @@ const blocked = computed(() => rows.value.filter((r) => r.task.status === 'block
 async function load() {
   ready.value = false
   try {
-    const [p, tasks, agentList] = await Promise.all([
+    // Three requests, whatever the project holds. The task list answers in the
+    // same {task, state} shape the board does, so there is nothing to assemble.
+    const [p, taskRows, agentList] = await Promise.all([
       api.project(props.slug), api.projectTasks(props.slug), api.agents(),
     ])
     project.value = p
     agents.value = agentList
-    // The board hands TaskTable {task, state}; a project task list is bare
-    // tasks, so it gets the same shape with the state fetched per row.
-    rows.value = await Promise.all(tasks.map(async (task) => ({
-      task,
-      state: (await api.task(task.ref)).state,
-    })))
+    rows.value = taskRows
   } catch (err) {
     failure.value = err.message
   } finally {

@@ -200,6 +200,22 @@ func TestServerAnnouncesItselfAndItsTools(t *testing.T) {
 			t.Errorf("instructions do not mention %q", phrase)
 		}
 	}
+
+	// The instructions described both records and then described only moves, so
+	// the habit that makes this work when an agent does not come back -- writing
+	// as you go, because the note is all that survives a crash -- was asked for
+	// only in a tool description, which is read once the tool is already under
+	// consideration. These three say it where every agent reads it on connect.
+	for phrase, why := range map[string]string{
+		"append_worklog":         "the worklog tool is never named",
+		"write state\nas you go": "checkpointing during long work is never asked for",
+		"pick up is in queue":    "where work may be claimed from is left to be inferred",
+		"cannot take it over":    "finding a task another agent abandoned has no answer",
+	} {
+		if !strings.Contains(instructions, phrase) {
+			t.Errorf("%s (looking for %q)", why, phrase)
+		}
+	}
 }
 
 // The project's central rule, expressed in the tool contract itself: an agent
@@ -214,7 +230,10 @@ func TestTransitionSchemaDemandsAState(t *testing.T) {
 		t.Fatal(err)
 	}
 	var schema struct {
-		Required []string `json:"required"`
+		Required   []string `json:"required"`
+		Properties map[string]struct {
+			Description string `json:"description"`
+		} `json:"properties"`
 	}
 	for _, tool := range tools.Tools {
 		if tool.Name != "transition_task" {
@@ -229,6 +248,14 @@ func TestTransitionSchemaDemandsAState(t *testing.T) {
 		}
 	}
 	required := strings.Join(schema.Required, ",")
+
+	// where_i_left_off is required at the one moment its own name does not fit:
+	// claiming queued work, when nothing has been done yet. The rule stays; the
+	// annotation has to say what the honest value is, or every agent's first
+	// write on every task is a sentence it had to invent.
+	if d := schema.Properties["where_i_left_off"].Description; !strings.Contains(d, "claiming queued work") {
+		t.Errorf("where_i_left_off does not say what to write when claiming: %q", d)
+	}
 	for _, field := range []string{"ref", "to", "where_i_left_off", "next_step"} {
 		if !strings.Contains(required, field) {
 			t.Errorf("%q is not required by the transition_task schema (required: %v)",
@@ -240,6 +267,177 @@ func TestTransitionSchemaDemandsAState(t *testing.T) {
 		if strings.Contains(required, field) {
 			t.Errorf("%q should be optional on transition_task", field)
 		}
+	}
+}
+
+// Three of these annotations describe the same database column as another one
+// elsewhere in the file, and in every case the weaker of the pair sat on the
+// tool an agent reaches for more often. The asymmetry is the bug: an agent gets
+// a worse instruction for using the more specific tool.
+func TestTheSameColumnIsDescribedAsWellOnEveryTool(t *testing.T) {
+	h := newHarness(t)
+	session := h.connect("claude")
+
+	tools, err := session.ListTools(h.ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	describe := map[string]map[string]string{}
+	for _, tool := range tools.Tools {
+		raw, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var schema struct {
+			Properties map[string]struct {
+				Description string `json:"description"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(raw, &schema); err != nil {
+			t.Fatal(err)
+		}
+		describe[tool.Name] = map[string]string{}
+		for field, prop := range schema.Properties {
+			describe[tool.Name][field] = prop.Description
+		}
+	}
+
+	// The dedicated worklog tool must not describe the worklog worse than the
+	// transition that happens to carry one. Its whole value is that one string.
+	if d := describe["append_worklog"]["what_was_tried"]; d == "what you attempted" || len(d) < 60 {
+		t.Errorf("append_worklog.what_was_tried restates its own field name: %q", d)
+	}
+	if !strings.Contains(describe["append_worklog"]["outcome"], "failures worth not repeating") {
+		t.Errorf("the dedicated worklog tool does not say dead ends are wanted: %q",
+			describe["append_worklog"]["outcome"])
+	}
+
+	// A field that is only sometimes required has to lead with when, or an agent
+	// that skims first clauses reads it as optional and is refused every time.
+	if !strings.HasPrefix(describe["transition_task"]["what_was_tried"], "required when") {
+		t.Errorf("what_was_tried buries its obligation: %q",
+			describe["transition_task"]["what_was_tried"])
+	}
+
+	// Naming the statuses on the narrower tool too: README points an agent at
+	// list_tasks first, and a guessed word costs a turn.
+	for _, tool := range []string{"board", "list_tasks"} {
+		for _, status := range []string{"backlog", "queue", "active", "review", "blocked", "done"} {
+			if !strings.Contains(describe[tool]["status"], status) {
+				t.Errorf("%s.status does not name %q: %q", tool, status, describe[tool]["status"])
+			}
+		}
+	}
+}
+
+// An agent that has done everything right and handed work over reads the same
+// sentence as an agent that is genuinely stuck. Three statuses leave an agent no
+// move -- backlog, review, done -- and the right answer differs in each, so one
+// sentence covering all three tells it it is stuck and never what to do. The
+// expensive misreading is the third thing it can do: file a near-duplicate task,
+// because filing is the one write it knows it is allowed.
+func TestAnAgentWithNoMoveIsToldWhoseTaskItIs(t *testing.T) {
+	h := newHarness(t)
+	h.seedTask("still in backlog", workflow.Backlog)
+	worked := h.seedTaskReturning("handed over", workflow.Queue)
+	session := h.connect("claude")
+
+	backlog := text(h.callRaw(session, "get_task", map[string]any{"ref": "cairn-1"}))
+	if !strings.Contains(backlog, "only the human moves a task out of backlog") {
+		t.Errorf("backlog says nothing about queueing: %q", backlog)
+	}
+
+	h.call(session, "transition_task", map[string]any{
+		"ref": "cairn-2", "to": "active",
+		"where_i_left_off": "read it", "next_step": "do it",
+	}, nil)
+	handed := text(h.callRaw(session, "transition_task", map[string]any{
+		"ref": "cairn-2", "to": "review",
+		"where_i_left_off": "did it", "next_step": "check it",
+		"what_was_tried": "did the thing",
+	}))
+	if !strings.Contains(handed, "waiting to be marked done") {
+		t.Errorf("handing work over reads as being stuck: %q", handed)
+	}
+
+	if _, err := h.svc.Transition(h.ctx, h.human, worked, service.TransitionInput{To: workflow.Done}); err != nil {
+		t.Fatal(err)
+	}
+	done := text(h.callRaw(session, "get_task", map[string]any{"ref": "cairn-2"}))
+	if !strings.Contains(done, "finished") {
+		t.Errorf("a finished task does not say so: %q", done)
+	}
+
+	// And the refusal itself names who the move belongs to, rather than only
+	// telling the agent it does not have one.
+	refused := h.refusal(session, "transition_task", map[string]any{
+		"ref": "cairn-1", "to": "active",
+		"where_i_left_off": "read it", "next_step": "do it",
+	})
+	if !strings.Contains(refused, "the human moves it on from here") {
+		t.Errorf("refusal does not say whose move it is: %q", refused)
+	}
+}
+
+// A checkpoint may say only what changed. transition_task keeps both fields
+// required, because a move is the moment the obligation bites; write_state is
+// the tool called mid-run, where restating an unchanged next step on every
+// checkpoint is pure cost. The note still has to end up whole, and the refusal
+// when it cannot comes from the service rather than the schema validator.
+func TestWriteStateTakesAPartialNote(t *testing.T) {
+	h := newHarness(t)
+	h.seedTask("Migrate the old invoice importer", workflow.Queue)
+	session := h.connect("claude")
+
+	tools, err := session.ListTools(h.ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tool := range tools.Tools {
+		if tool.Name != "write_state" {
+			continue
+		}
+		raw, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var schema struct {
+			Required []string `json:"required"`
+		}
+		if err := json.Unmarshal(raw, &schema); err != nil {
+			t.Fatal(err)
+		}
+		for _, field := range []string{"where_i_left_off", "next_step"} {
+			if strings.Contains(strings.Join(schema.Required, ","), field) {
+				t.Errorf("%q is required by write_state, so a partial checkpoint is impossible", field)
+			}
+		}
+	}
+
+	// Nothing stored yet: there is nothing to inherit, so the whole note is
+	// still owed, and Cairn says so rather than the validator.
+	message := h.refusal(session, "write_state", map[string]any{
+		"ref": "cairn-1", "where_i_left_off": "read the fixture",
+	})
+	if !strings.Contains(message, "next_step is empty") {
+		t.Errorf("first partial write got the wrong refusal: %q", message)
+	}
+
+	h.call(session, "transition_task", map[string]any{
+		"ref": "cairn-1", "to": "active",
+		"where_i_left_off": "read the fixture", "next_step": "make the mapping name-based",
+	}, nil)
+
+	// Now a checkpoint that only reports progress keeps the standing next step.
+	var detail taskDetailOut
+	h.call(session, "write_state", map[string]any{
+		"ref": "cairn-1", "where_i_left_off": "mapping rewritten; 2019 passes",
+	}, &detail)
+	if detail.State.NextStep != "make the mapping name-based" {
+		t.Errorf("the standing next step was blanked by a partial checkpoint: %q", detail.State.NextStep)
+	}
+	if detail.State.WhereILeftOff != "mapping rewritten; 2019 passes" {
+		t.Errorf("the checkpoint did not land: %q", detail.State.WhereILeftOff)
 	}
 }
 
@@ -322,8 +520,23 @@ func TestAgentWorksATaskThroughMCP(t *testing.T) {
 	if len(detail.CanMoveTo) != 0 {
 		t.Errorf("agent can still move a task in review: %v", detail.CanMoveTo)
 	}
-	if len(detail.Worklog) != 5 {
-		t.Errorf("worklog has %d entries, want 5", len(detail.Worklog))
+	// A write echoes the entry it just made, not the whole history -- but it
+	// still says how much history there is, so nothing is hidden by the saving.
+	if len(detail.Worklog) != 1 {
+		t.Errorf("write echoed %d worklog entries, want 1", len(detail.Worklog))
+	}
+	if detail.Worklog[0].WhatWasTried != "built with make build and moved web/dist aside" {
+		t.Errorf("the echoed entry is not the one just written: %+v", detail.Worklog[0])
+	}
+	if detail.WorklogTotal != 5 {
+		t.Errorf("worklog_total = %d, want 5", detail.WorklogTotal)
+	}
+
+	// And asking for the task properly still hands over the history.
+	h.call(session, "get_task", map[string]any{"ref": "cairn-1"}, &detail)
+	if len(detail.Worklog) != 5 || detail.WorklogTotal != 5 {
+		t.Errorf("get_task returned %d of %d entries, want 5 of 5",
+			len(detail.Worklog), detail.WorklogTotal)
 	}
 }
 
@@ -599,6 +812,170 @@ func TestResponsesAreNotSentTwice(t *testing.T) {
 	}
 }
 
+// The project-scoped tool used to answer with bare tasks while the board
+// answered with the note, so an agent set up one-repo-one-project was better off
+// calling board and discarding the other projects. Both go through one query
+// now; this locks the note onto the narrower tool.
+func TestListTasksCarriesTheSameNoteAsTheBoard(t *testing.T) {
+	h := newHarness(t)
+	id := h.seedTaskReturning("port the column mapping", workflow.Queue)
+	if _, err := h.svc.Transition(h.ctx, h.human, id, service.TransitionInput{
+		To: workflow.Active,
+		State: &service.StateInput{
+			WhereILeftOff: "read the failing fixture",
+			NextStep:      "make the mapping name-based",
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	session := h.connect("claude")
+
+	var scoped, board tasksOut
+	h.call(session, "list_tasks", map[string]any{"project": "cairn"}, &scoped)
+	h.call(session, "board", map[string]any{}, &board)
+
+	if len(scoped.Tasks) != 1 {
+		t.Fatalf("list_tasks returned %d tasks, want 1", len(scoped.Tasks))
+	}
+	if scoped.Tasks[0].NextStep != "make the mapping name-based" {
+		t.Errorf("list_tasks next_step = %q, want the note the board carries", scoped.Tasks[0].NextStep)
+	}
+	if scoped.Tasks[0].UpdatedBy == "" {
+		t.Error("list_tasks dropped updated_by")
+	}
+	if len(board.Tasks) != 1 || !reflect.DeepEqual(board.Tasks[0], scoped.Tasks[0]) {
+		t.Errorf("same task differs by tool:\n board      %+v\n list_tasks %+v",
+			board.Tasks, scoped.Tasks)
+	}
+}
+
+// The instructions tell every connecting client that "every task read includes
+// can_move_to". A listing is a task read, so the promise has to hold there too --
+// otherwise an agent scanning for work it may claim guesses, or spends one
+// get_task per row. blocked_on is the same argument: on a blocked row it is the
+// only sentence that matters, and it used to cost a whole extra call to see.
+func TestListingsCarryBlockedOnAndTheMovesAvailable(t *testing.T) {
+	h := newHarness(t)
+	h.seedTask("wire up the importer", workflow.Queue)
+	h.seedTask("not started", workflow.Queue)
+
+	session := h.connect("claude")
+
+	h.call(session, "transition_task", map[string]any{
+		"ref": "cairn-1", "to": "active",
+		"where_i_left_off": "read the fixture", "next_step": "call the endpoint",
+	}, nil)
+	h.call(session, "transition_task", map[string]any{
+		"ref": "cairn-1", "to": "blocked",
+		"where_i_left_off": "called the endpoint",
+		"next_step":        "retry once there are credentials",
+		"blocked_on":       "no API credentials for the staging importer",
+		"what_was_tried":   "called it unauthenticated",
+	}, nil)
+
+	var board tasksOut
+	h.call(session, "board", map[string]any{}, &board)
+
+	byRef := map[string]taskOut{}
+	for _, task := range board.Tasks {
+		byRef[task.Ref] = task
+	}
+
+	blocked, ok := byRef["cairn-1"]
+	if !ok {
+		t.Fatalf("blocked task missing from board: %+v", board.Tasks)
+	}
+	if blocked.BlockedOn != "no API credentials for the staging importer" {
+		t.Errorf("board dropped blocked_on: %+v", blocked)
+	}
+	if !reflect.DeepEqual(blocked.CanMoveTo, []string{"active"}) {
+		t.Errorf("blocked row can_move_to = %v, want [active]", blocked.CanMoveTo)
+	}
+	if queued := byRef["cairn-2"]; !reflect.DeepEqual(queued.CanMoveTo, []string{"active"}) {
+		t.Errorf("queued row can_move_to = %v, want [active]", queued.CanMoveTo)
+	}
+
+	// A row and the task detail behind it must never disagree about what is
+	// permitted, which is why the service fills both.
+	var detail taskDetailOut
+	h.call(session, "get_task", map[string]any{"ref": "cairn-1"}, &detail)
+	if !reflect.DeepEqual(detail.CanMoveTo, blocked.CanMoveTo) {
+		t.Errorf("get_task says %v, board says %v", detail.CanMoveTo, blocked.CanMoveTo)
+	}
+	if detail.State.BlockedOn != blocked.BlockedOn {
+		t.Errorf("get_task blocked_on %q, board %q", detail.State.BlockedOn, blocked.BlockedOn)
+	}
+}
+
+// can_move_to is per-actor, so it has to be computed from the caller rather than
+// from the status alone. A task in review offers the human "done" and the agent
+// nothing at all.
+func TestCanMoveToOnAListingIsTheCallersOwn(t *testing.T) {
+	h := newHarness(t)
+	id := h.seedTaskReturning("port the mapping", workflow.Queue)
+	for _, to := range []workflow.Status{workflow.Active, workflow.Review} {
+		if _, err := h.svc.Transition(h.ctx, h.human, id, service.TransitionInput{
+			To:    to,
+			State: &service.StateInput{WhereILeftOff: "did the thing", NextStep: "check it"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	rows, err := h.svc.Board(h.ctx, h.human, service.BoardQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || !reflect.DeepEqual(rows[0].CanMoveTo, []workflow.Status{workflow.Done, workflow.Active}) {
+		t.Errorf("human sees %v on a task in review, want [done active]", rows[0].CanMoveTo)
+	}
+
+	var board tasksOut
+	h.call(h.connect("claude"), "board", map[string]any{}, &board)
+	if len(board.Tasks) != 1 {
+		t.Fatalf("board returned %d tasks, want 1", len(board.Tasks))
+	}
+	if len(board.Tasks[0].CanMoveTo) != 0 {
+		t.Errorf("agent sees %v on a task in review, want nothing", board.Tasks[0].CanMoveTo)
+	}
+}
+
+// Narrowing to a project must not swallow the status filter, nor the reverse:
+// the project condition is a WHERE and the status condition then has to be an
+// AND. Get it wrong and the query widens instead of narrowing.
+func TestListTasksNarrowsByProjectAndStatusTogether(t *testing.T) {
+	h := newHarness(t)
+	h.seedTask("queued here", workflow.Queue)
+	h.seedTask("also queued here", workflow.Queue)
+	h.seedTask("backlogged here", workflow.Backlog)
+
+	other, err := h.svc.CreateProject(h.ctx, h.human, "other", "Other", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.CreateTask(h.ctx, h.human, service.CreateTaskInput{
+		ProjectID: other.ID, Title: "queued elsewhere", Status: workflow.Queue,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	session := h.connect("claude")
+
+	var out tasksOut
+	h.call(session, "list_tasks", map[string]any{
+		"project": "cairn", "status": []string{"queue"},
+	}, &out)
+	if len(out.Tasks) != 2 {
+		t.Fatalf("project+status returned %d tasks, want 2: %+v", len(out.Tasks), out.Tasks)
+	}
+	for _, task := range out.Tasks {
+		if task.Project != "cairn" || task.Status != "queue" {
+			t.Errorf("filter let %s/%s through", task.Project, task.Status)
+		}
+	}
+}
+
 // A board that returns everything, done included, is a board an agent stops
 // reading. And a truncated one has to admit it.
 func TestBoardDefaultsToOpenWorkAndAdmitsTruncation(t *testing.T) {
@@ -645,6 +1022,21 @@ func TestBoardDefaultsToOpenWorkAndAdmitsTruncation(t *testing.T) {
 		t.Errorf("limited board returned %d tasks, truncated=%v", len(board.Tasks), board.Truncated)
 	}
 
+	// The exact-fill case. Two open tasks and a limit of two is a complete
+	// answer, and calling it truncated sends the agent back for a second full
+	// payload identical to the first.
+	h.call(session, "board", map[string]any{"limit": 2}, &board)
+	if len(board.Tasks) != 2 || board.Truncated {
+		t.Errorf("board of 2 under limit 2 returned %d tasks, truncated=%v; want 2 and false",
+			len(board.Tasks), board.Truncated)
+	}
+
+	// And a limit with room to spare is not truncated either.
+	h.call(session, "board", map[string]any{"limit": 50}, &board)
+	if len(board.Tasks) != 2 || board.Truncated {
+		t.Errorf("roomy board returned %d tasks, truncated=%v", len(board.Tasks), board.Truncated)
+	}
+
 	message := h.refusal(session, "board", map[string]any{"status": []string{"nonsense"}})
 	if !strings.Contains(message, "nonsense") || !strings.Contains(message, "backlog") {
 		t.Errorf("bad status refusal does not list the real ones: %q", message)
@@ -684,5 +1076,25 @@ func TestWorklogIsTrimmedButHonest(t *testing.T) {
 	h.call(session, "get_task", map[string]any{"ref": "cairn-1", "worklog_limit": 100}, &detail)
 	if len(detail.Worklog) != 16 {
 		t.Errorf("asking for more returned %d entries, want all 16", len(detail.Worklog))
+	}
+
+	// A read that was cut short says so, and says what to do about it. A write
+	// is cut short deliberately, so saying the same thing on every checkpoint
+	// would report a saving as a shortfall.
+	read := text(h.callRaw(session, "get_task", map[string]any{"ref": "cairn-1"}))
+	if !strings.Contains(read, "Showing the last 10 of 16") || !strings.Contains(read, "worklog_limit") {
+		t.Errorf("a trimmed read does not say so and what to do: %q", read)
+	}
+
+	write := text(h.callRaw(session, "write_state", map[string]any{
+		"ref": "cairn-1", "where_i_left_off": "still going", "next_step": "keep going",
+	}))
+	if strings.Contains(write, "Showing the last") {
+		t.Errorf("a write reports its deliberate trim as truncation: %q", write)
+	}
+	// Still 16: write_state writes state, and only the worklog tools write the
+	// worklog. The count is the real one either way.
+	if !strings.Contains(write, "16 worklog entries") {
+		t.Errorf("a write does not say how much history there is: %q", write)
 	}
 }

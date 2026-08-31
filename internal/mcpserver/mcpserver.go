@@ -42,6 +42,11 @@ Every task carries two records, and both matter:
 
 You cannot move a task without writing state. This is enforced, not advised.
 
+Both records can be written without moving the task. On long work, write state
+as you go: if you stop unexpectedly, that note is what survives. Record an
+attempt with append_worklog as soon as you know how it went, rather than saving
+it all for the move.
+
 The workflow is: backlog -> queue -> active -> review -> done, with blocked as
 a side state that active falls into and returns from.
 
@@ -49,10 +54,18 @@ Two moves are the human's alone and will be refused:
   backlog -> queue  only the human decides what gets worked on
   review  -> done   only the human decides that something is finished
 
+Work you may pick up is in queue. A task in backlog is not yours to start; if
+you think it should be worked on, say so and leave it where it is.
+
 So when you finish a piece of work, move it to review and make sure next_step
 says what the human should check. When you are stuck, move it to blocked and
 say exactly what you need in blocked_on. Do not leave a task in active when you
 stop working: that tells the human work is in progress when it is not.
+
+If a task has been in active a long time with nothing written, the agent that
+claimed it probably stopped. You cannot take it over -- that is the human's
+call -- but you can append_worklog saying what you found, so the next reader is
+not the first to notice.
 
 Every task read includes can_move_to, which lists the moves available to you
 from where the task is now. Use it rather than guessing.`

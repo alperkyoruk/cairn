@@ -619,6 +619,239 @@ func TestLeavingActiveRequiresTheAttempt(t *testing.T) {
 	}
 }
 
+// The scenario cairn-2 describes, run end to end. An agent's account of what it
+// did is the thing the product exists to keep; a review comment landing on top
+// of it, because UpsertState overwrote every column and the human was obliged to
+// fill the field, is that failure caused by the product itself.
+func TestSendingWorkBackKeepsTheAgentsOwnAccount(t *testing.T) {
+	f := newFixture(t)
+	f.claim(t)
+
+	const account = "Rewrote the column mapping to be name-based instead of positional."
+	if _, err := f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{
+		To:      workflow.Review,
+		State:   &StateInput{WhereILeftOff: account, NextStep: "check the 2019 fixture"},
+		Worklog: &WorklogInput{WhatWasTried: "rewrote the mapping"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The human rejects, saying only what is wrong. They are not asked to
+	// restate what the agent did, so they cannot overwrite it by accident.
+	if _, err := f.svc.Transition(f.ctx, f.human, f.task, TransitionInput{
+		To:      workflow.Active,
+		State:   &StateInput{NextStep: "the 2022 header names still fail"},
+		Worklog: &WorklogInput{WhatWasTried: "reviewed it; the 2022 header names still fail"},
+	}); err != nil {
+		t.Fatalf("rejecting without restating the agent's note was refused: %v", err)
+	}
+
+	detail, err := f.svc.GetTask(f.ctx, f.agent, f.task, TaskQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.State.WhereILeftOff != account {
+		t.Errorf("the agent's account was overwritten by the review:\n  got  %q\n  want %q",
+			detail.State.WhereILeftOff, account)
+	}
+	if detail.State.NextStep != "the 2022 header names still fail" {
+		t.Errorf("next_step = %q", detail.State.NextStep)
+	}
+
+	// And the reason is in the record that keeps. state.next_step is overwritten
+	// in place by design, so the next checkpoint would erase it there.
+	last := detail.Worklog[len(detail.Worklog)-1]
+	if !strings.Contains(last.WhatWasTried, "2022 header names still fail") {
+		t.Errorf("the rejection reason is not in the worklog: %+v", last)
+	}
+
+	if err := f.svc.WriteState(f.ctx, f.agent, f.task, StateInput{
+		WhereILeftOff: "looked at the 2022 header row",
+		NextStep:      "special-case the shift",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	detail, _ = f.svc.GetTask(f.ctx, f.agent, f.task, TaskQuery{})
+	last = detail.Worklog[len(detail.Worklog)-1]
+	if !strings.Contains(last.WhatWasTried, "2022 header names still fail") {
+		t.Error("the agent's next checkpoint erased the human's reason")
+	}
+}
+
+// Which writes may leave a field out, and which may not.
+//
+// Empty and absent are the same value here -- Go cannot tell them apart, and a
+// JSON client sends "" for a field it has nothing to say about. So the schema's
+// required keyword cannot carry this: it only checks the key is present. A move
+// that demands a fresh note has to refuse an empty one itself.
+func TestOnlyACheckpointMayLeaveAFieldOut(t *testing.T) {
+	f := newFixture(t)
+	f.claim(t)
+
+	// A checkpoint may say only what changed: nothing is changing hands.
+	if err := f.svc.WriteState(f.ctx, f.agent, f.task, StateInput{
+		WhereILeftOff: "mapping rewritten; 2019 passes",
+	}); err != nil {
+		t.Fatalf("a partial checkpoint was refused: %v", err)
+	}
+	detail, _ := f.svc.GetTask(f.ctx, f.agent, f.task, TaskQuery{})
+	standing := detail.State.NextStep
+	if standing == "" {
+		t.Fatal("the standing next step was blanked by a partial checkpoint")
+	}
+
+	// A move may not. Handing work to the human with an inherited note says
+	// nothing about the stretch of work just finished -- and worse, hands over a
+	// next_step describing work that is already done.
+	_, err := f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{
+		To:      workflow.Review,
+		State:   &StateInput{WhereILeftOff: "", NextStep: ""},
+		Worklog: &WorklogInput{WhatWasTried: "wrote the parser"},
+	})
+	wantKind(t, err, KindInvalid)
+	if !strings.Contains(err.Error(), "where_i_left_off is empty") {
+		t.Errorf("a move inherited its own note instead of demanding one: %v", err)
+	}
+
+	// The one exception, which is the whole of cairn-2: the human sending work
+	// back owes a reason, not a restatement of what the agent did.
+	if _, err := f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{
+		To:      workflow.Review,
+		State:   &StateInput{WhereILeftOff: "wrote the parser", NextStep: "check the fixtures"},
+		Worklog: &WorklogInput{WhatWasTried: "wrote the parser"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Transition(f.ctx, f.human, f.task, TransitionInput{
+		To:    workflow.Active,
+		State: &StateInput{NextStep: "the 2022 header names still fail"},
+	}); err != nil {
+		t.Fatalf("rejecting without restating the agent's note was refused: %v", err)
+	}
+	detail, _ = f.svc.GetTask(f.ctx, f.agent, f.task, TaskQuery{})
+	if detail.State.WhereILeftOff != "wrote the parser" {
+		t.Errorf("the agent's account did not survive the rejection: %q", detail.State.WhereILeftOff)
+	}
+
+	// And inheritance fills gaps rather than inventing a note: with nothing
+	// stored, even the rejection path has to be given both.
+	other, err := f.svc.CreateTask(f.ctx, f.human, CreateTaskInput{
+		ProjectID: f.project, Title: "untouched", Status: workflow.Queue,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.svc.Transition(f.ctx, f.agent, other.ID, TransitionInput{
+		To: workflow.Active, State: &StateInput{WhereILeftOff: "read it"},
+	})
+	wantKind(t, err, KindInvalid)
+	if !strings.Contains(err.Error(), "next_step") {
+		t.Errorf("refusal does not name the missing field: %v", err)
+	}
+}
+
+// Leaving blocked ends the blocker by either door. Giving up on a blocked task
+// used to park it in backlog still carrying a live blocked_on, which every
+// surface then reported: "is backlog: two. Blocked on: need staging credentials."
+func TestGivingUpOnABlockedTaskClearsTheBlocker(t *testing.T) {
+	f := newFixture(t)
+	f.claim(t)
+
+	if _, err := f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{
+		To: workflow.Blocked,
+		State: &StateInput{
+			WhereILeftOff: "called the importer", NextStep: "retry with credentials",
+			BlockedOn: "need staging credentials",
+		},
+		Worklog: &WorklogInput{WhatWasTried: "called it unauthenticated"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The human deprioritises it, leaving no note -- which they are allowed to do.
+	if _, err := f.svc.Transition(f.ctx, f.human, f.task, TransitionInput{To: workflow.Backlog}); err != nil {
+		t.Fatal(err)
+	}
+	detail, _ := f.svc.GetTask(f.ctx, f.human, f.task, TaskQuery{})
+	if detail.Task.Status != workflow.Backlog {
+		t.Fatalf("status = %s", detail.Task.Status)
+	}
+	if detail.State.BlockedOn != "" {
+		t.Errorf("a task in backlog still claims to be blocked: %q", detail.State.BlockedOn)
+	}
+}
+
+// status and state.blocked_on are two records of the same fact. Nothing used to
+// keep them agreeing in one direction: the guard refused to clear a blocker on a
+// blocked task and said nothing about setting one on a task that was not
+// blocked. An agent doing the careful thing -- recording the blocker it just hit
+// -- produced a task that claimed to be in flight and stuck at once.
+func TestABlockerCanOnlyBeSetWhereItWillBeRead(t *testing.T) {
+	f := newFixture(t)
+	f.claim(t)
+
+	// The filed sequence: write the blocker, do not move the task.
+	err := f.svc.WriteState(f.ctx, f.agent, f.task, StateInput{
+		WhereILeftOff: "called the importer endpoint",
+		NextStep:      "retry once there are credentials",
+		BlockedOn:     "no API credentials for staging",
+	})
+	wantKind(t, err, KindInvalid)
+	for _, want := range []string{"active", "not blocked", "transition_task"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("refusal does not say %q: %v", want, err)
+		}
+	}
+
+	// The same value on a move that parks it somewhere nobody reads it. This is
+	// the path a fix to WriteState alone would have left open: Requires only
+	// clears blocked_on for moves into active, so review would have stored it.
+	_, err = f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{
+		To: workflow.Review,
+		State: &StateInput{
+			WhereILeftOff: "did most of it", NextStep: "check the last bit",
+			BlockedOn: "still need staging credentials",
+		},
+		Worklog: &WorklogInput{WhatWasTried: "ran it unauthenticated"},
+	})
+	wantKind(t, err, KindInvalid)
+
+	// Checkpointing without a blocker is untouched -- this is the common path.
+	if err := f.svc.WriteState(f.ctx, f.agent, f.task, StateInput{
+		WhereILeftOff: "called the importer endpoint",
+		NextStep:      "retry once there are credentials",
+	}); err != nil {
+		t.Fatalf("an ordinary checkpoint was refused: %v", err)
+	}
+
+	// And the honest move still works, and still carries the blocker.
+	if _, err := f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{
+		To: workflow.Blocked,
+		State: &StateInput{
+			WhereILeftOff: "called the importer endpoint",
+			NextStep:      "retry once there are credentials",
+			BlockedOn:     "no API credentials for staging",
+		},
+		Worklog: &WorklogInput{WhatWasTried: "called it unauthenticated"},
+	}); err != nil {
+		t.Fatalf("moving to blocked with a blocker was refused: %v", err)
+	}
+	detail, _ := f.svc.GetTask(f.ctx, f.agent, f.task, TaskQuery{})
+	if detail.State.BlockedOn != "no API credentials for staging" {
+		t.Errorf("the blocker did not survive the move it belongs on: %q", detail.State.BlockedOn)
+	}
+
+	// While blocked, checkpointing must keep carrying it: the old guard against
+	// clearing a live blocker still stands.
+	err = f.svc.WriteState(f.ctx, f.agent, f.task, StateInput{
+		WhereILeftOff: "still waiting", NextStep: "chase the credentials",
+	})
+	wantKind(t, err, KindInvalid)
+	if !strings.Contains(err.Error(), "cannot be cleared") {
+		t.Errorf("refusal is the wrong one: %v", err)
+	}
+}
+
 // Picking work up is not the end of anything, so it asks for nothing extra.
 func TestClaimingWorkStillAsksOnlyForTheNote(t *testing.T) {
 	f := newFixture(t)

@@ -83,10 +83,21 @@ type WorklogEntry struct {
 	ToStatus     workflow.Status
 }
 
-// BoardRow is one line of the cross-project main screen.
+// BoardRow is one line of the main screen.
 type BoardRow struct {
 	Task  Task
 	State *State // nil when nobody has left a note yet
+
+	// CanMoveTo is the moves available to the actor who asked, from where the
+	// task is now. It is filled by the service, which is the only layer that
+	// knows who is asking, so a row and the task detail behind it cannot
+	// disagree about what is permitted.
+	//
+	// Read by the MCP surface, where an agent scanning a listing for work it may
+	// claim would otherwise guess or spend a call per row. The web board does
+	// not carry it: the interface asks for a task's moves when it opens the
+	// task, which is the only place it offers buttons.
+	CanMoveTo []workflow.Status
 }
 
 func itoa(n int) string {

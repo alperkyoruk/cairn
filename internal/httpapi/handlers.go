@@ -216,14 +216,17 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request, actor s
 		writeError(w, err)
 		return
 	}
-	tasks, err := s.svc.ListTasks(r.Context(), actor, p.ID, service.BoardQuery{})
+	rows, err := s.svc.Board(r.Context(), actor, service.BoardQuery{ProjectID: p.ID})
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	out := make([]taskDTO, 0, len(tasks))
-	for _, t := range tasks {
-		out = append(out, toTask(t))
+	// The same shape as /api/board, because it is the same rows narrowed to one
+	// project. Answering with bare tasks is what made the project page fetch the
+	// note a task at a time.
+	out := make([]boardRowDTO, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, boardRowDTO{Task: toTask(row.Task), State: toState(row.State)})
 	}
 	writeJSON(w, http.StatusOK, out)
 }

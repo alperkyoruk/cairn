@@ -284,7 +284,7 @@ func TestBoardSinksDoneBelowOpenWork(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rows, err := Board(ctx, db.Read(), nil, 0)
+	rows, err := Board(ctx, db.Read(), "", nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,11 +298,11 @@ func TestBoardSinksDoneBelowOpenWork(t *testing.T) {
 	}
 
 	// The same rule applies inside a project.
-	tasks, err := ListTasksByProject(ctx, db.Read(), "p1", nil, 0)
+	tasks, err := Board(ctx, db.Read(), "p1", nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tasks) != 3 || tasks[2].Status != workflow.Done {
+	if len(tasks) != 3 || tasks[2].Task.Status != workflow.Done {
 		t.Errorf("project list does not sink done: %v", tasks)
 	}
 }
@@ -345,12 +345,12 @@ func TestBoardAndProjectFiltersAndLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	all, err := Board(ctx, db.Read(), nil, 0)
+	all, err := Board(ctx, db.Read(), "", nil, 0)
 	if err != nil || len(all) != 6 {
 		t.Fatalf("unfiltered board = %d rows, %v; want 6", len(all), err)
 	}
 
-	open, err := Board(ctx, db.Read(), []workflow.Status{workflow.Active, workflow.Review}, 0)
+	open, err := Board(ctx, db.Read(), "", []workflow.Status{workflow.Active, workflow.Review}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,14 +363,26 @@ func TestBoardAndProjectFiltersAndLimits(t *testing.T) {
 		}
 	}
 
-	capped, err := Board(ctx, db.Read(), nil, 2)
+	capped, err := Board(ctx, db.Read(), "", nil, 2)
 	if err != nil || len(capped) != 2 {
 		t.Fatalf("limited board = %d rows, %v; want 2", len(capped), err)
 	}
 
-	inProject, err := ListTasksByProject(ctx, db.Read(), "p1", []workflow.Status{workflow.Done}, 0)
-	if err != nil || len(inProject) != 1 || inProject[0].Status != workflow.Done {
+	inProject, err := Board(ctx, db.Read(), "p1", []workflow.Status{workflow.Done}, 0)
+	if err != nil || len(inProject) != 1 || inProject[0].Task.Status != workflow.Done {
 		t.Fatalf("project filter = %v, %v", inProject, err)
+	}
+
+	// Both conditions at once: the project filter must not swallow the status
+	// filter, nor the other way round. p1 has one done task and five open ones.
+	both, err := Board(ctx, db.Read(), "p1", []workflow.Status{workflow.Active}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range both {
+		if r.Task.ProjectID != "p1" || r.Task.Status != workflow.Active {
+			t.Errorf("project+status filter let %s/%s through", r.Task.ProjectID, r.Task.Status)
+		}
 	}
 }
 

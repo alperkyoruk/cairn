@@ -23,26 +23,40 @@ const busy = ref(false)
 // act. The server is the authority -- internal/workflow's Requires decides
 // this, and a refusal comes back inline if the list below ever drifts from it.
 const pending = ref(null)          // the status being moved to, once a form is open
-const form = ref({ where_i_left_off: '', next_step: '', blocked_on: '' })
+const form = ref({ finding: '', where_i_left_off: '', next_step: '', blocked_on: '' })
 
 // blocked needs a reason. Sending work back from review needs to say what was
 // wrong with it, or the agent picks the task up reading its own last note.
 function fieldsFor(to) {
-  if (to === 'blocked') return ['blocked_on']
-  if (to === 'active' && detail.value?.task.status === 'review') {
-    return ['where_i_left_off', 'next_step']
-  }
-  return []
+  const rejecting = to === 'active' && detail.value?.task.status === 'review'
+  if (to !== 'blocked' && !rejecting) return []
+
+  // An omitted field keeps what is stored -- but a task with no note yet has
+  // nothing to inherit, and the server refuses a half-written one. Without this
+  // the form offers no field that could satisfy its own refusal: a task the
+  // human moved to active themselves, leaving no note, could never be blocked.
+  const whole = detail.value?.state ? [] : ['where_i_left_off', 'next_step']
+  if (to === 'blocked') return [...whole, 'blocked_on']
+  return whole.length ? ['finding', ...whole] : ['finding', 'next_step']
 }
 
+// Where each field lands. A rejection's finding goes to the worklog, not to
+// state: state holds one note that is overwritten in place, so a reason written
+// there is erased by the next agent's checkpoint -- and on the way in it lands
+// on top of where_i_left_off, which is the agent's own account of what it did.
+// The worklog is the record that keeps.
+const WORKLOG_FIELDS = new Set(['finding'])
+
 const PROMPTS = {
-  where_i_left_off: 'What you found',
+  finding: 'What you found',
+  where_i_left_off: 'Where the work stands',
   next_step: 'What needs to be different',
   blocked_on: 'What is blocking it',
 }
 
 const PLACEHOLDERS = {
-  where_i_left_off: 'What you saw when you reviewed it',
+  finding: 'What you saw when you reviewed it',
+  where_i_left_off: 'What has been done so far, if anything',
   next_step: 'The single next thing the agent should do',
   blocked_on: 'Exactly what is needed in order to continue',
 }
@@ -75,7 +89,7 @@ async function load() {
 function startMove(to) {
   if (fieldsFor(to).length && pending.value !== to) {
     pending.value = to
-    form.value = { where_i_left_off: '', next_step: '', blocked_on: '' }
+    form.value = { finding: '', where_i_left_off: '', next_step: '', blocked_on: '' }
     return
   }
   move(to)
@@ -86,15 +100,18 @@ async function move(to) {
   busy.value = true
   try {
     const needs = fieldsFor(to)
-    const state = needs.length
-      ? {
-          where_i_left_off: form.value.where_i_left_off,
-          next_step: form.value.next_step,
-          blocked_on: form.value.blocked_on,
-        }
+    // Only what this move asked for is sent. An omitted field keeps whatever is
+    // already stored, so sending work back no longer overwrites the agent's
+    // where_i_left_off with a review comment.
+    const stateFields = needs.filter((f) => !WORKLOG_FIELDS.has(f))
+    const state = stateFields.length
+      ? Object.fromEntries(stateFields.map((f) => [f, form.value[f]]))
+      : null
+    const worklog = needs.includes('finding')
+      ? { what_was_tried: form.value.finding }
       : null
     // The status mark changing is the feedback; there is no toast.
-    detail.value = await api.transition(props.taskRef, to, state, null)
+    detail.value = await api.transition(props.taskRef, to, state, worklog)
     pending.value = null
   } catch (err) {
     failure.value = err.message

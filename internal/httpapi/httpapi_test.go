@@ -301,6 +301,80 @@ func TestBoardShape(t *testing.T) {
 	}
 }
 
+// A project's task list is the board narrowed to one project, so it answers in
+// the same shape and carries the same note. When it answered with bare tasks the
+// project page made one extra request per row to fetch the note back, each one
+// dragging the task's entire worklog with it.
+func TestProjectTasksAnswerInBoardShape(t *testing.T) {
+	h := newHarness(t)
+	h.setUp()
+
+	var project projectDTO
+	resp := h.do("POST", "/api/projects", map[string]string{"slug": "cairn", "name": "Cairn"}, "")
+	h.decode(resp, &project)
+
+	var created taskDTO
+	resp = h.do("POST", "/api/tasks", map[string]any{
+		"project_id": project.ID, "title": "port the importer", "status": "queue",
+	}, "")
+	h.decode(resp, &created)
+	resp = h.do("POST", "/api/tasks", map[string]any{
+		"project_id": project.ID, "title": "untouched",
+	}, "")
+	resp.Body.Close()
+
+	resp = h.do("POST", "/api/tasks/"+created.ID+"/transition", map[string]any{
+		"to": "active",
+		"state": map[string]any{
+			"where_i_left_off": "read the failing fixture",
+			"next_step":        "make the column mapping name-based",
+		},
+	}, "")
+	h.wantStatus(resp, http.StatusOK)
+	resp.Body.Close()
+
+	var rows []boardRowDTO
+	resp = h.do("GET", "/api/projects/cairn/tasks", nil, "")
+	h.wantStatus(resp, http.StatusOK)
+	h.decode(resp, &rows)
+
+	if len(rows) != 2 {
+		t.Fatalf("project tasks returned %d rows, want 2", len(rows))
+	}
+
+	// Indexed by ref, not by position. Ordering is a property of the shared
+	// query and is covered where the clock can be controlled; here every write
+	// happens in the same millisecond or two, so asserting order would be
+	// asserting the UUIDv7 tiebreak rather than the rule.
+	byRef := map[string]boardRowDTO{}
+	for _, row := range rows {
+		byRef[row.Task.Ref] = row
+	}
+
+	worked, ok := byRef[created.Ref]
+	if !ok {
+		t.Fatalf("%s missing from the project listing", created.Ref)
+	}
+	if worked.State == nil || worked.State.NextStep != "make the column mapping name-based" {
+		t.Errorf("the row does not carry the note: %+v", worked.State)
+	}
+	for ref, row := range byRef {
+		if ref != created.Ref && row.State != nil {
+			t.Error("state should be null, not an empty object, when nobody has left a note")
+		}
+	}
+
+	// And it is the same row the board gives for the same task.
+	var board []boardRowDTO
+	resp = h.do("GET", "/api/board", nil, "")
+	h.decode(resp, &board)
+	for _, row := range board {
+		if row.Task.Ref == created.Ref && !reflect.DeepEqual(row, worked) {
+			t.Errorf("same task differs by endpoint:\n board   %+v\n project %+v", row, worked)
+		}
+	}
+}
+
 // A cross-site form cannot be made to look like this, which is the point.
 func TestWritesMustBeJSON(t *testing.T) {
 	h := newHarness(t)

@@ -175,8 +175,21 @@ type Requirement struct {
 	// written down later, and the dead ends are the point of the worklog.
 	WhatWasTried bool
 
-	// ClearsBlockedOn wipes any stale blocker when work resumes.
+	// ClearsBlockedOn wipes any stale blocker when the task stops being blocked.
+	// That is either end of it: resuming work, or giving up on it and putting it
+	// back. Leaving blocked by any door means the blocker no longer holds, and a
+	// task carrying one while its status says otherwise is the exact
+	// disagreement between the two records that the service refuses to create.
 	ClearsBlockedOn bool
+
+	// InheritsWhereILeftOff lets the caller omit where_i_left_off and keep what
+	// is stored. Only the human sending work back from review: they owe a reason,
+	// not a restatement of what the agent did, and obliging them to fill the
+	// field is what made a rejection land on top of the agent's own account.
+	//
+	// Every other move demands it fresh. A move is the moment the obligation
+	// bites, and a handover that inherits its own note says nothing.
+	InheritsWhereILeftOff bool
 }
 
 // Requires reports what a particular move demands. It takes both ends because
@@ -193,9 +206,17 @@ func Requires(from, to Status) Requirement {
 		r.ClearsBlockedOn = true
 	}
 
+	// Leaving blocked at all ends the blocker, not just resuming work. Without
+	// this, blocked -> backlog left a live blocked_on on a task that is not
+	// blocked, which every surface then reports as a blocker.
+	if from == Blocked {
+		r.ClearsBlockedOn = true
+	}
+
 	// The human rejecting work owes the agent a reason.
 	if from == Review && to == Active {
 		r.NextStep = true
+		r.InheritsWhereILeftOff = true
 	}
 
 	// Leaving active is the end of a stretch of work, in either direction.
@@ -257,7 +278,11 @@ func (e *TransitionError) Error() string {
 
 func (e *TransitionError) suffix() string {
 	if len(e.Alternatives) == 0 {
-		return fmt.Sprintf("; from %s you cannot move this task", e.From)
+		// Not "you are stuck" but "this one is not yours". True of all three
+		// statuses that leave an agent no move: backlog waits to be queued,
+		// review waits to be marked done or sent back, done waits to be
+		// reopened -- and every one of them is the human's to do.
+		return fmt.Sprintf("; from %s no move is yours to make -- the human moves it on from here", e.From)
 	}
 	return fmt.Sprintf("; from %s you can move it to %s", e.From, join(e.Alternatives))
 }

@@ -97,29 +97,6 @@ func DeleteTask(ctx context.Context, q Queryer, id string) error {
 	return expectOne(res, "task")
 }
 
-func ListTasksByProject(ctx context.Context, q Queryer, projectID string, statuses []workflow.Status, limit int) ([]model.Task, error) {
-	where, args := statusFilter("AND", "t.status", statuses)
-	args = append([]any{projectID}, args...)
-	rows, err := q.QueryContext(ctx,
-		`SELECT `+taskColumns+` FROM task t JOIN project p ON p.id = t.project_id
-		 WHERE t.project_id = ?`+where+`
-		 ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END, t.updated_at DESC, t.id DESC`+
-			limitClause(limit), args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []model.Task
-	for rows.Next() {
-		t, err := scanTask(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, t)
-	}
-	return out, rows.Err()
-}
-
 // --- state ------------------------------------------------------------------
 
 // UpsertState overwrites the note on a task. There is deliberately no history
@@ -233,9 +210,9 @@ func CountWorklog(ctx context.Context, q Queryer, taskID string) (int, error) {
 }
 
 // statusFilter builds an optional status restriction with its arguments. The
-// keyword is the caller's, because one of these queries already has a WHERE
-// clause and the other does not -- and appending "AND ..." to a query whose
-// last clause is a LEFT JOIN silently widens the join instead of filtering.
+// keyword is the caller's, because Board's own project filter may or may not
+// have opened a WHERE already -- and appending "AND ..." to a query whose last
+// clause is a LEFT JOIN silently widens the join instead of filtering.
 func statusFilter(keyword, column string, statuses []workflow.Status) (string, []any) {
 	if len(statuses) == 0 {
 		return "", nil
@@ -258,21 +235,38 @@ func limitClause(limit int) string {
 
 // --- the main screen --------------------------------------------------------
 
-// Board returns tasks across every project, most recently touched first, each
-// with its note if one exists. This is the query behind the root URL.
+// Board returns tasks most recently touched first, each with its note if one
+// exists. This is the query behind the root URL, and -- with projectID set --
+// behind a single project's task list and the project-scoped MCP tool.
 //
-// statuses restricts the result when non-empty; limit caps it when positive.
-// Both exist for the MCP surface, where a board of a few hundred tasks is a
-// meaningful slice of an agent's context window rather than a scroll.
-func Board(ctx context.Context, q Queryer, statuses []workflow.Status, limit int) ([]model.BoardRow, error) {
-	where, args := statusFilter("WHERE", "t.status", statuses)
+// A project list is the same rows as the board with one more condition on them,
+// so it is the same query. Keeping them apart is what let a project listing
+// answer without the note while the board answered with it, and made the
+// interface fetch state a task at a time to make up the difference.
+//
+// projectID restricts the result when non-empty; statuses restricts it when
+// non-empty; limit caps it when positive. The last two exist for the MCP
+// surface, where a board of a few hundred tasks is a meaningful slice of an
+// agent's context window rather than a scroll.
+func Board(ctx context.Context, q Queryer, projectID string, statuses []workflow.Status, limit int) ([]model.BoardRow, error) {
+	keyword := "WHERE"
+	var args []any
+	var filter string
+	if projectID != "" {
+		filter, keyword = " WHERE t.project_id = ?", "AND"
+		args = append(args, projectID)
+	}
+	byStatus, statusArgs := statusFilter(keyword, "t.status", statuses)
+	filter += byStatus
+	args = append(args, statusArgs...)
+
 	rows, err := q.QueryContext(ctx, `
 		SELECT `+taskColumns+`,
 		       s.where_i_left_off, s.next_step, s.blocked_on, s.updated_by, a.name, s.updated_at
 		FROM task t
 		JOIN project p        ON p.id = t.project_id
 		LEFT JOIN task_state s ON s.task_id = t.id
-		LEFT JOIN actor a      ON a.id = s.updated_by`+where+`
+		LEFT JOIN actor a      ON a.id = s.updated_by`+filter+`
 		-- Done sinks below everything else. Finishing a task is a touch, so
 		-- most-recently-touched alone floats your freshest completed work above
 		-- the thing you are actually stuck on. Nothing is hidden and there is no

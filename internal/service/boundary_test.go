@@ -22,7 +22,6 @@ var methodOps = map[string]Op{
 	"LookupTask":     OpRead,
 	"ListAgents":     OpRead,
 	"ListProjects":   OpRead,
-	"ListTasks":      OpRead,
 	"AppendWorklog":  OpWorklogAppend,
 	"WriteState":     OpStateWrite,
 	"Transition":     OpTaskTransition,
