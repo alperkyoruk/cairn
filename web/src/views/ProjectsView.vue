@@ -5,6 +5,7 @@ import { api } from '../api.js'
 import RelativeTime from '../components/RelativeTime.vue'
 import TaskTable from '../components/TaskTable.vue'
 import ChevronDown from '../components/icons/ChevronDown.vue'
+import { isSilent } from '../silence.js'
 
 // The root screen. Projects first, because a task list across every project is
 // only legible once you already know what the projects are -- and because a new
@@ -51,7 +52,12 @@ const summary = computed(() =>
 //
 // Review is waiting on a decision and blocked is waiting on an unblocking;
 // both are the human's, and nothing else on the board is.
+// Review is waiting on a decision, blocked on an unblocking, and a silent task
+// on somebody noticing that nothing is happening. All three are the human's,
+// and nothing else on the board is: the rest is either an agent's turn or
+// nobody's.
 const NEEDS_A_HUMAN = ['review', 'blocked']
+const needsMe = (row) => NEEDS_A_HUMAN.includes(row.task.status) || isSilent(row.task)
 
 // Oldest first, which is the opposite of every other list in the app. Recency
 // is the right order for "what is happening" and exactly the wrong one for
@@ -59,7 +65,7 @@ const NEEDS_A_HUMAN = ['review', 'blocked']
 // the bottom, which is where you stop reading.
 const needsYou = computed(() =>
   rows.value
-    .filter((r) => NEEDS_A_HUMAN.includes(r.task.status))
+    .filter(needsMe)
     .slice()
     .sort((a, b) => a.task.updated_at.localeCompare(b.task.updated_at)))
 
@@ -250,7 +256,8 @@ onMounted(load)
            Its own condition, not a v-else: the reveal button sits between this
            and the table, so an else would bind to the button instead. -->
       <p v-if="!needsYou.length" class="clear">
-        Nothing is in review or blocked. Everything open is with the agents.
+        Nothing is in review or blocked, and nothing has gone quiet. Everything
+        open is with the agents.
       </p>
     </section>
 

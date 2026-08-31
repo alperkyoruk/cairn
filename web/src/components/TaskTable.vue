@@ -4,6 +4,7 @@ import StatusMark from './StatusMark.vue'
 import ActorName from './ActorName.vue'
 import RelativeTime from './RelativeTime.vue'
 import { formatFull } from '../composables/useRelativeTime.js'
+import { isSilent } from '../silence.js'
 
 // The board and project detail are the same table; the project column is the
 // only difference between them.
@@ -77,7 +78,12 @@ function open(row) {
         v-for="row in rows"
         :key="row.task.id"
         class="row rule-bottom"
-        :class="{ waiting: row.task.status === 'review', stale: !isRecent(row), done: row.task.status === 'done' }"
+        :class="{
+          waiting: row.task.status === 'review',
+          silent: isSilent(row.task),
+          stale: !isRecent(row),
+          done: row.task.status === 'done',
+        }"
         @click="open(row)"
       >
         <td class="c-edge"></td>
@@ -102,7 +108,10 @@ function open(row) {
           <ActorName :name="lastActor(row)" :is-agent="isAgent(lastActor(row))" />
         </td>
 
-        <td class="c-ago">
+        <!-- On a silent row this number has the opposite meaning to everywhere
+             else: not "recently touched" but "nothing has happened for this
+             long". Same value, so the hue carries the difference. -->
+        <td class="c-ago" :title="isSilent(row.task) ? 'Active, but nothing written for ' + formatFull(row.task.updated_at) : null">
           <RelativeTime :value="row.task.updated_at" />
         </td>
       </tr>
@@ -200,4 +209,11 @@ td {
    just now that nobody has read. Accent is already the "this involves you" hue
    on review rows, which is what an unaccompanied attempt usually is. */
 .next-attempt { color: color-mix(in srgb, var(--accent) 88%, #75798c); }
+
+/* Silence reads as a blocker, because that is what it is: work that is not
+   happening and will not resume on its own. It borrows the blocked hue rather
+   than inventing a fourth, and it overrides .stale, which would otherwise dim
+   the very cell that carries the point. */
+.row.silent .c-ago { color: var(--blocked); }
+.row.silent .c-edge { box-shadow: inset 2px 0 0 var(--blocked); }
 </style>
