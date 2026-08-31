@@ -70,6 +70,18 @@ type worklogDTO struct {
 type boardRowDTO struct {
 	Task  taskDTO   `json:"task"`
 	State *stateDTO `json:"state"`
+
+	// Attempt is set only when the newest thing on the task is a worklog entry
+	// that did not move it. Null otherwise, so the interface can tell "an agent
+	// recorded something here" from "the note was rewritten" -- the row rises
+	// either way, and until now it looked identical.
+	Attempt *attemptDTO `json:"attempt"`
+}
+
+type attemptDTO struct {
+	Actor        string    `json:"actor"`
+	WhatWasTried string    `json:"what_was_tried"`
+	At           time.Time `json:"at"`
 }
 
 // taskDetailDTO carries can_move_to so the interface never has to know the
@@ -121,6 +133,13 @@ func toTask(t model.Task) taskDTO {
 		Number: t.Number, Title: t.Title, Body: t.Body, Status: string(t.Status),
 		CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
+}
+
+func toAttempt(a *model.Attempt) *attemptDTO {
+	if a == nil {
+		return nil
+	}
+	return &attemptDTO{Actor: a.Actor, WhatWasTried: a.WhatWasTried, At: a.At}
 }
 
 func toState(s *model.State) *stateDTO {

@@ -83,10 +83,29 @@ type WorklogEntry struct {
 	ToStatus     workflow.Status
 }
 
+// Attempt is a worklog entry recorded without moving the task, and newer than
+// the note on it.
+//
+// It exists because that event was invisible. Appending to the worklog bumps
+// task.updated_at, so the row rises to the top of a most-recently-touched
+// board, while next_step and updated_by both come from task_state and do not
+// change -- the row moves and says nothing about why. That is exactly what a
+// second agent reviewing a task in review produces: the recommendation is the
+// point of delegating the review, and it was only visible by opening the task.
+type Attempt struct {
+	Actor        string
+	WhatWasTried string
+	At           time.Time
+}
+
 // BoardRow is one line of the main screen.
 type BoardRow struct {
 	Task  Task
 	State *State // nil when nobody has left a note yet
+
+	// Attempt is set only when the last thing to happen was an unaccompanied
+	// worklog entry. A transition writes one too, but the status carries that.
+	Attempt *Attempt
 
 	// CanMoveTo is the moves available to the actor who asked, from where the
 	// task is now. It is filled by the service, which is the only layer that

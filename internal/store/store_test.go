@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -310,6 +311,95 @@ func TestBoardSinksDoneBelowOpenWork(t *testing.T) {
 // The filter has to be a WHERE on the board and an AND inside a project. Get
 // that wrong and the board query silently widens its LEFT JOIN instead of
 // filtering, which returns every row and looks like it worked.
+// Appending to the worklog bumps task.updated_at, so the row rises to the top of
+// a most-recently-touched board -- while next_step and updated_by both come from
+// task_state and do not move. The row travelled and said nothing about why, which
+// is exactly what a second agent reviewing someone else's task produces.
+func TestBoardShowsAnAttemptRecordedWithoutAMove(t *testing.T) {
+	db := open(t)
+	ctx := context.Background()
+	base := time.Date(2026, 8, 31, 9, 0, 0, 0, time.UTC)
+
+	err := db.Write(ctx, func(q Queryer) error {
+		for _, a := range []model.Actor{
+			{ID: "worker", Type: workflow.Agent, Name: "worker", CreatedAt: base},
+			{ID: "reviewer", Type: workflow.Agent, Name: "reviewer", CreatedAt: base},
+		} {
+			if err := InsertActor(ctx, q, a, ""); err != nil {
+				return err
+			}
+		}
+		if err := InsertProject(ctx, q, model.Project{ID: "p1", Slug: "cairn", Name: "Cairn", CreatedAt: base}); err != nil {
+			return err
+		}
+		for i, title := range []string{"reviewed", "moved", "untouched"} {
+			id := fmt.Sprintf("t%d", i+1)
+			if err := InsertTask(ctx, q, model.Task{
+				ID: id, ProjectID: "p1", Number: i + 1, Title: title,
+				Status: workflow.Review, CreatedAt: base, UpdatedAt: base,
+			}); err != nil {
+				return err
+			}
+			if err := UpsertState(ctx, q, model.State{
+				TaskID: id, WhereILeftOff: "did the work",
+				NextStep: "check it", UpdatedBy: "worker", UpdatedAt: base,
+			}); err != nil {
+				return err
+			}
+		}
+		// t1: a second agent records a finding without moving the task.
+		if err := InsertWorklog(ctx, q, model.WorklogEntry{
+			ID: "w1", TaskID: "t1", ActorID: "reviewer", CreatedAt: base.Add(time.Hour),
+			WhatWasTried: "reviewed it against both fixtures",
+			Outcome:      "2022 still fails; recommend sending back",
+		}); err != nil {
+			return err
+		}
+		// t2: newer still, but it carries a move, and the status already says so.
+		if err := InsertWorklog(ctx, q, model.WorklogEntry{
+			ID: "w2", TaskID: "t2", ActorID: "reviewer", CreatedAt: base.Add(2 * time.Hour),
+			WhatWasTried: "did the work", FromStatus: workflow.Active, ToStatus: workflow.Review,
+		}); err != nil {
+			return err
+		}
+		// t3: an entry older than the note, so the note is still the latest word.
+		return InsertWorklog(ctx, q, model.WorklogEntry{
+			ID: "w3", TaskID: "t3", ActorID: "reviewer", CreatedAt: base.Add(-time.Hour),
+			WhatWasTried: "an earlier attempt",
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := Board(ctx, db.Read(), "", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]model.BoardRow{}
+	for _, r := range rows {
+		byID[r.Task.ID] = r
+	}
+
+	got := byID["t1"].Attempt
+	if got == nil {
+		t.Fatal("an unaccompanied attempt is still invisible on the board")
+	}
+	if got.Actor != "reviewer" {
+		t.Errorf("attempt credited to %q, want reviewer", got.Actor)
+	}
+	if got.WhatWasTried != "reviewed it against both fixtures" {
+		t.Errorf("attempt text = %q", got.WhatWasTried)
+	}
+
+	if byID["t2"].Attempt != nil {
+		t.Error("a move was reported as an unaccompanied attempt; the status already carries it")
+	}
+	if byID["t3"].Attempt != nil {
+		t.Error("an attempt older than the note displaced it")
+	}
+}
+
 func TestBoardAndProjectFiltersAndLimits(t *testing.T) {
 	db := open(t)
 	ctx := context.Background()

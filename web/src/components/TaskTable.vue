@@ -19,14 +19,19 @@ function isAgent(name) {
   return props.agents.some((a) => a.name === name)
 }
 
-// Three distinct cases, and the distinction is deliberate: words for a missing
-// record, a dash for an empty field.
+// Words for a missing record, a dash for an empty field, and two cases where
+// the cell is borrowed by whichever record actually has something to say.
 //
-// The third is the only cell in the app whose meaning depends on the row's
-// status. On a blocked task next_step is usually empty and blocked_on holds the
-// only sentence that matters, so the cell borrows the column -- same width, same
-// header, and the hue is what says the field is different.
+// On a blocked task next_step is usually empty and blocked_on holds the only
+// sentence that matters. And when the last thing to happen was an attempt
+// recorded without moving the task -- an agent reviewing work it did not do,
+// most often -- next_step still says what the previous writer intended, which
+// is not what just happened. Both borrow the column: same width, same header,
+// and the hue is what says the field is different.
 function nextCell(row) {
+  if (row.attempt) {
+    return { kind: 'attempt', text: row.attempt.what_was_tried }
+  }
   const state = row.state
   if (!state) return { kind: 'missing', text: 'no state yet' }
   if (row.task.status === 'blocked' && state.blocked_on) {
@@ -34,6 +39,13 @@ function nextCell(row) {
   }
   if (!state.next_step) return { kind: 'empty', text: '—' }
   return { kind: 'value', text: state.next_step }
+}
+
+// Who caused the most recent event, not who last wrote the note. Those were the
+// same person until an agent could review someone else's task; after that the
+// row rose to the top of the board still crediting the previous writer.
+function lastActor(row) {
+  return row.attempt ? row.attempt.actor : row.state?.updated_by
 }
 
 // Recency by luminance: anything touched under an hour ago stays bright, older
@@ -87,7 +99,7 @@ function open(row) {
         </td>
 
         <td class="c-by">
-          <ActorName :name="row.state?.updated_by" :is-agent="isAgent(row.state?.updated_by)" />
+          <ActorName :name="lastActor(row)" :is-agent="isAgent(lastActor(row))" />
         </td>
 
         <td class="c-ago">
@@ -131,6 +143,29 @@ td {
 .c-by { width: 104px; font-size: 12.5px; }
 .c-ago { width: 56px; text-align: right; font-size: 12.5px; color: var(--text-dim); }
 
+/* The fixed column widths add up to more than a phone is wide, and with
+   table-layout: fixed that made the page itself scroll sideways -- on three
+   screens, including the root. Columns drop in order of how easily the reader
+   can reconstruct them by opening the task.
+   
+   Who touched it and when go first: both are one click away and neither
+   answers "does this need me". The project goes last and only when there is
+   genuinely no room, because on a cross-project board it is real context. What
+   never goes is the title, the status, and the next step -- on a blocked row
+   that last cell is carrying the blocker, which is the only sentence that
+   matters on it. */
+@media (max-width: 900px) {
+  .c-by, .c-ago { display: none; }
+  .c-project { width: 84px; }
+  .c-status { width: 100px; }
+  .c-next { width: auto; }
+}
+
+@media (max-width: 560px) {
+  .c-project { display: none; }
+  .c-status { width: 92px; }
+}
+
 /* Never two lines: a row that can grow breaks the scan rhythm, and the full
    text is one click away. */
 .c-task span, .c-next span, .c-project a {
@@ -160,4 +195,9 @@ td {
 .next-missing { font-size: var(--t-sm); color: var(--text-faint); }
 .next-empty { color: var(--text-faint); }
 .next-blocked { color: color-mix(in srgb, var(--blocked) 76%, #75798c); }
+/* Three treatments for one column, and the hue is the whole distinction: muted
+   is the routine next step, amber is a blocker, accent is something recorded
+   just now that nobody has read. Accent is already the "this involves you" hue
+   on review rows, which is what an unaccompanied attempt usually is. */
+.next-attempt { color: color-mix(in srgb, var(--accent) 88%, #75798c); }
 </style>

@@ -127,7 +127,7 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, actor servi
 	}
 	out := make([]boardRowDTO, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, boardRowDTO{Task: toTask(row.Task), State: toState(row.State)})
+		out = append(out, boardRowDTO{Task: toTask(row.Task), State: toState(row.State), Attempt: toAttempt(row.Attempt)})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -226,7 +226,7 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request, actor s
 	// note a task at a time.
 	out := make([]boardRowDTO, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, boardRowDTO{Task: toTask(row.Task), State: toState(row.State)})
+		out = append(out, boardRowDTO{Task: toTask(row.Task), State: toState(row.State), Attempt: toAttempt(row.Attempt)})
 	}
 	writeJSON(w, http.StatusOK, out)
 }

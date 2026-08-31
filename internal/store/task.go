@@ -262,11 +262,22 @@ func Board(ctx context.Context, q Queryer, projectID string, statuses []workflow
 
 	rows, err := q.QueryContext(ctx, `
 		SELECT `+taskColumns+`,
-		       s.where_i_left_off, s.next_step, s.blocked_on, s.updated_by, a.name, s.updated_at
+		       s.where_i_left_off, s.next_step, s.blocked_on, s.updated_by, a.name, s.updated_at,
+		       w.created_at, w.what_was_tried, w.to_status, wa.name
 		FROM task t
 		JOIN project p        ON p.id = t.project_id
 		LEFT JOIN task_state s ON s.task_id = t.id
-		LEFT JOIN actor a      ON a.id = s.updated_by`+filter+`
+		LEFT JOIN actor a      ON a.id = s.updated_by
+		-- The newest worklog entry, so a row can say when the last thing that
+		-- happened was an attempt rather than a note. Correlated rather than a
+		-- grouped subquery with bare columns: this is explicit about which row
+		-- it picks, and it breaks a same-millisecond tie the same way the board
+		-- itself does, on the id. worklog_task (task_id, created_at) serves it.
+		LEFT JOIN worklog w ON w.id = (
+			SELECT id FROM worklog WHERE task_id = t.id
+			ORDER BY created_at DESC, id DESC LIMIT 1
+		)
+		LEFT JOIN actor wa     ON wa.id = w.actor_id`+filter+`
 		-- Done sinks below everything else. Finishing a task is a touch, so
 		-- most-recently-touched alone floats your freshest completed work above
 		-- the thing you are actually stuck on. Nothing is hidden and there is no
@@ -288,16 +299,31 @@ func Board(ctx context.Context, q Queryer, projectID string, statuses []workflow
 		var t model.Task
 		var status, created, updated string
 		var where, next, blocked, by, byName, at sql.NullString
+		var wAt, wTried, wTo, wActor sql.NullString
 
 		if err := rows.Scan(&t.ID, &t.ProjectID, &t.Number, &t.Title, &t.Body, &status,
 			&created, &updated, &t.ProjectSlug,
-			&where, &next, &blocked, &by, &byName, &at); err != nil {
+			&where, &next, &blocked, &by, &byName, &at,
+			&wAt, &wTried, &wTo, &wActor); err != nil {
 			return nil, err
 		}
 		t.Status = workflow.Status(status)
 		t.CreatedAt, t.UpdatedAt = parseTime(created), parseTime(updated)
 
 		row := model.BoardRow{Task: t}
+
+		// An attempt recorded without moving the task is the one event the row
+		// could not show: it bumps task.updated_at, so the row floats to the
+		// top, while every field the row displays comes from the note and does
+		// not change. A transition already announces itself through the status,
+		// so only an entry with no to_status counts here.
+		if wAt.Valid && !wTo.Valid {
+			if entryAt := parseTime(wAt.String); !at.Valid || entryAt.After(parseTime(at.String)) {
+				row.Attempt = &model.Attempt{
+					Actor: wActor.String, WhatWasTried: wTried.String, At: entryAt,
+				}
+			}
+		}
 		if by.Valid {
 			row.State = &model.State{
 				TaskID:        t.ID,
