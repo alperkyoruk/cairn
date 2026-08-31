@@ -19,10 +19,33 @@ const failure = ref('')
 const ready = ref(false)
 const busy = ref(false)
 
-// Moving to blocked is the one transition the server refuses without a value,
-// so it is the one button that asks for something before it acts.
-const blocking = ref(false)
-const blockedOn = ref('')
+// Two moves are refused without a value, so those two buttons ask before they
+// act. The server is the authority -- internal/workflow's Requires decides
+// this, and a refusal comes back inline if the list below ever drifts from it.
+const pending = ref(null)          // the status being moved to, once a form is open
+const form = ref({ where_i_left_off: '', next_step: '', blocked_on: '' })
+
+// blocked needs a reason. Sending work back from review needs to say what was
+// wrong with it, or the agent picks the task up reading its own last note.
+function fieldsFor(to) {
+  if (to === 'blocked') return ['blocked_on']
+  if (to === 'active' && detail.value?.task.status === 'review') {
+    return ['where_i_left_off', 'next_step']
+  }
+  return []
+}
+
+const PROMPTS = {
+  where_i_left_off: 'What you found',
+  next_step: 'What needs to be different',
+  blocked_on: 'What is blocking it',
+}
+
+const PLACEHOLDERS = {
+  where_i_left_off: 'What you saw when you reviewed it',
+  next_step: 'The single next thing the agent should do',
+  blocked_on: 'Exactly what is needed in order to continue',
+}
 
 const editing = ref(false)
 const edit = ref({ title: '', body: '' })
@@ -49,28 +72,39 @@ async function load() {
   }
 }
 
-async function move(to) {
-  if (to === 'blocked' && !blocking.value) {
-    blocking.value = true
-    blockedOn.value = ''
+function startMove(to) {
+  if (fieldsFor(to).length && pending.value !== to) {
+    pending.value = to
+    form.value = { where_i_left_off: '', next_step: '', blocked_on: '' }
     return
   }
+  move(to)
+}
+
+async function move(to) {
   failure.value = ''
   busy.value = true
   try {
+    const needs = fieldsFor(to)
+    const state = needs.length
+      ? {
+          where_i_left_off: form.value.where_i_left_off,
+          next_step: form.value.next_step,
+          blocked_on: form.value.blocked_on,
+        }
+      : null
     // The status mark changing is the feedback; there is no toast.
-    detail.value = await api.transition(
-      props.taskRef, to,
-      to === 'blocked' ? { where_i_left_off: '', next_step: '', blocked_on: blockedOn.value } : null,
-      null,
-    )
-    blocking.value = false
+    detail.value = await api.transition(props.taskRef, to, state, null)
+    pending.value = null
   } catch (err) {
     failure.value = err.message
   } finally {
     busy.value = false
   }
 }
+
+const canSubmit = computed(() =>
+  fieldsFor(pending.value).every((f) => form.value[f].trim()))
 
 function startEdit() {
   edit.value = { title: detail.value.task.title, body: detail.value.task.body }
@@ -149,24 +183,26 @@ watch(() => props.taskRef, load)
         :from="detail.task.status"
         :moves="detail.can_move_to"
         :busy="busy"
-        @move="move"
+        @move="startMove"
       />
 
-      <form v-if="blocking" class="blockform" @submit.prevent="move('blocked')">
-        <label class="field-label" for="blockedon">What is blocking it</label>
-        <textarea
-          id="blockedon"
-          v-model="blockedOn"
-          class="input"
-          rows="3"
-          autofocus
-          placeholder="Exactly what is needed in order to continue"
-        />
+      <form v-if="pending" class="moveform" @submit.prevent="move(pending)">
+        <div v-for="(field, i) in fieldsFor(pending)" :key="field" class="field">
+          <label class="field-label" :for="`f-${field}`">{{ PROMPTS[field] }}</label>
+          <textarea
+            :id="`f-${field}`"
+            v-model="form[field]"
+            class="input"
+            rows="3"
+            :autofocus="i === 0"
+            :placeholder="PLACEHOLDERS[field]"
+          />
+        </div>
         <div class="row">
-          <button class="btn btn-primary" type="submit" :disabled="!blockedOn.trim() || busy">
-            Mark blocked
+          <button class="btn btn-primary" type="submit" :disabled="!canSubmit || busy">
+            {{ pending === 'blocked' ? 'Mark blocked' : 'Send back to active' }}
           </button>
-          <button class="btn btn-secondary" type="button" @click="blocking = false">Cancel</button>
+          <button class="btn btn-secondary" type="button" @click="pending = null">Cancel</button>
         </div>
       </form>
 
@@ -176,7 +212,7 @@ watch(() => props.taskRef, load)
           <dt>reference</dt><dd class="mono">{{ detail.task.ref }}</dd>
           <dt>project</dt>
           <dd><RouterLink :to="`/p/${detail.task.project}`">{{ detail.task.project }}</RouterLink></dd>
-          <dt>created</dt><dd><RelativeTime :value="detail.task.created_at" /> ago</dd>
+          <dt>created</dt><dd><RelativeTime :value="detail.task.created_at" ago /></dd>
           <dt>worklog</dt>
           <dd>{{ detail.worklog.length }} {{ detail.worklog.length === 1 ? 'entry' : 'entries' }}</dd>
         </dl>
@@ -240,7 +276,8 @@ h1 {
 .edit { display: flex; flex-direction: column; gap: var(--s-3); margin-bottom: var(--s-8); }
 .row { display: flex; gap: var(--s-3); }
 
-.blockform { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-6); }
+.moveform { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-6); }
+.moveform .field { margin-bottom: var(--s-2); }
 
 .block { margin-top: var(--s-8); padding-top: var(--s-8); }
 .block .section-head { display: block; margin-bottom: var(--s-4); }

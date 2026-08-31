@@ -57,7 +57,7 @@ const isAgent = computed(() => props.agents.some((a) => a.name === props.state?.
 
       <p class="byline">
         written by <ActorName :name="state.updated_by" :is-agent="isAgent" /> ·
-        <RelativeTime :value="state.updated_at" /> ago
+        <RelativeTime :value="state.updated_at" ago />
       </p>
     </template>
   </section>

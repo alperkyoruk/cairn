@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alperkyoruk/cairn/internal/clock"
@@ -95,11 +97,14 @@ func DeleteTask(ctx context.Context, q Queryer, id string) error {
 	return expectOne(res, "task")
 }
 
-func ListTasksByProject(ctx context.Context, q Queryer, projectID string) ([]model.Task, error) {
+func ListTasksByProject(ctx context.Context, q Queryer, projectID string, statuses []workflow.Status, limit int) ([]model.Task, error) {
+	where, args := statusFilter("AND", "t.status", statuses)
+	args = append([]any{projectID}, args...)
 	rows, err := q.QueryContext(ctx,
 		`SELECT `+taskColumns+` FROM task t JOIN project p ON p.id = t.project_id
-		 WHERE t.project_id = ?
-		 ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END, t.updated_at DESC, t.id DESC`, projectID)
+		 WHERE t.project_id = ?`+where+`
+		 ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END, t.updated_at DESC, t.id DESC`+
+			limitClause(limit), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -176,12 +181,21 @@ func InsertWorklog(ctx context.Context, q Queryer, e model.WorklogEntry) error {
 	return nil
 }
 
-func ListWorklog(ctx context.Context, q Queryer, taskID string) ([]model.WorklogEntry, error) {
+// ListWorklog returns a task's entries oldest first. A positive limit returns
+// the most recent that many -- still in oldest-first order, because reading a
+// history backwards is not reading it.
+func ListWorklog(ctx context.Context, q Queryer, taskID string, limit int) ([]model.WorklogEntry, error) {
+	order := "ORDER BY w.created_at, w.id"
+	if limit > 0 {
+		// Take the newest, then flip. A window function would avoid the flip
+		// and buy nothing at this size.
+		order = "ORDER BY w.created_at DESC, w.id DESC" + limitClause(limit)
+	}
 	rows, err := q.QueryContext(ctx, `
 		SELECT w.id, w.task_id, w.actor_id, a.name, w.created_at, w.what_was_tried, w.outcome,
 		       w.from_status, w.to_status
 		FROM worklog w JOIN actor a ON a.id = w.actor_id
-		WHERE w.task_id = ? ORDER BY w.created_at, w.id`, taskID)
+		WHERE w.task_id = ? `+order, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -199,21 +213,66 @@ func ListWorklog(ctx context.Context, q Queryer, taskID string) ([]model.Worklog
 		e.FromStatus, e.ToStatus = workflow.Status(from.String), workflow.Status(to.String)
 		out = append(out, e)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if limit > 0 {
+		for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+			out[i], out[j] = out[j], out[i]
+		}
+	}
+	return out, nil
+}
+
+// CountWorklog reports how many entries a task has, so a truncated list can say
+// what it left out.
+func CountWorklog(ctx context.Context, q Queryer, taskID string) (int, error) {
+	var n int
+	err := q.QueryRowContext(ctx, `SELECT count(*) FROM worklog WHERE task_id = ?`, taskID).Scan(&n)
+	return n, err
+}
+
+// statusFilter builds an optional status restriction with its arguments. The
+// keyword is the caller's, because one of these queries already has a WHERE
+// clause and the other does not -- and appending "AND ..." to a query whose
+// last clause is a LEFT JOIN silently widens the join instead of filtering.
+func statusFilter(keyword, column string, statuses []workflow.Status) (string, []any) {
+	if len(statuses) == 0 {
+		return "", nil
+	}
+	marks := make([]string, len(statuses))
+	args := make([]any, len(statuses))
+	for i, st := range statuses {
+		marks[i] = "?"
+		args[i] = string(st)
+	}
+	return " " + keyword + " " + column + " IN (" + strings.Join(marks, ", ") + ")", args
+}
+
+func limitClause(limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	return " LIMIT " + strconv.Itoa(limit)
 }
 
 // --- the main screen --------------------------------------------------------
 
-// Board returns every task across every project, most recently touched first,
-// each with its note if one exists. This is the query behind the root URL.
-func Board(ctx context.Context, q Queryer) ([]model.BoardRow, error) {
+// Board returns tasks across every project, most recently touched first, each
+// with its note if one exists. This is the query behind the root URL.
+//
+// statuses restricts the result when non-empty; limit caps it when positive.
+// Both exist for the MCP surface, where a board of a few hundred tasks is a
+// meaningful slice of an agent's context window rather than a scroll.
+func Board(ctx context.Context, q Queryer, statuses []workflow.Status, limit int) ([]model.BoardRow, error) {
+	where, args := statusFilter("WHERE", "t.status", statuses)
 	rows, err := q.QueryContext(ctx, `
 		SELECT `+taskColumns+`,
 		       s.where_i_left_off, s.next_step, s.blocked_on, s.updated_by, a.name, s.updated_at
 		FROM task t
 		JOIN project p        ON p.id = t.project_id
 		LEFT JOIN task_state s ON s.task_id = t.id
-		LEFT JOIN actor a      ON a.id = s.updated_by
+		LEFT JOIN actor a      ON a.id = s.updated_by`+where+`
 		-- Done sinks below everything else. Finishing a task is a touch, so
 		-- most-recently-touched alone floats your freshest completed work above
 		-- the thing you are actually stuck on. Nothing is hidden and there is no
@@ -223,7 +282,8 @@ func Board(ctx context.Context, q Queryer) ([]model.BoardRow, error) {
 		-- same millisecond tie. Ids are UUIDv7 and therefore time-ordered, which
 		-- makes them the correct tiebreak -- descending keeps "most recent first"
 		-- true all the way down.
-		ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END, t.updated_at DESC, t.id DESC`)
+		ORDER BY CASE WHEN t.status = 'done' THEN 1 ELSE 0 END, t.updated_at DESC, t.id DESC`+
+		limitClause(limit), args...)
 	if err != nil {
 		return nil, err
 	}

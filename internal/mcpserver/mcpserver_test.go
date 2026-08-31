@@ -155,11 +155,18 @@ func text(result *mcp.CallToolResult) string {
 
 func (h *harness) seedTask(title string, status workflow.Status) {
 	h.t.Helper()
-	if _, err := h.svc.CreateTask(h.ctx, h.human, service.CreateTaskInput{
+	h.seedTaskReturning(title, status)
+}
+
+func (h *harness) seedTaskReturning(title string, status workflow.Status) string {
+	h.t.Helper()
+	task, err := h.svc.CreateTask(h.ctx, h.human, service.CreateTaskInput{
 		ProjectID: h.project, Title: title, Status: status,
-	}); err != nil {
+	})
+	if err != nil {
 		h.t.Fatal(err)
 	}
+	return task.ID
 }
 
 // --- tests ------------------------------------------------------------------
@@ -300,11 +307,13 @@ func TestAgentWorksATaskThroughMCP(t *testing.T) {
 		t.Errorf("blocker survived the return to active: %q", detail.State.BlockedOn)
 	}
 
-	// Hand it back.
+	// Hand it back. Leaving active also records the attempt.
 	h.call(session, "transition_task", map[string]any{
 		"ref": "cairn-1", "to": "review",
 		"where_i_left_off": "make build embeds dist/",
 		"next_step":        "check the binary serves / with no dist on disk",
+		"what_was_tried":   "built with make build and moved web/dist aside",
+		"outcome":          "the binary still served the app, so the embed is real",
 	}, &detail)
 	if detail.Status != "review" {
 		t.Fatalf("status = %s", detail.Status)
@@ -318,12 +327,63 @@ func TestAgentWorksATaskThroughMCP(t *testing.T) {
 	}
 }
 
-// The two withheld decisions, refused over MCP with messages an agent can act on.
-func TestTheHumansDecisionsAreRefusedWithAnExplanation(t *testing.T) {
+// The two withheld decisions. They are now refused by the schema rather than by
+// the service: `to` enumerates only the statuses an agent may name, so a client
+// reading the tool cannot form the call at all. That is a better place to spend
+// the refusal than an error message -- it is read before acting rather than
+// after failing -- but it does mean the teaching moved into the description,
+// which is asserted here so it cannot quietly go missing.
+func TestTheHumansDecisionsAreNotEvenExpressible(t *testing.T) {
 	h := newHarness(t)
 	h.seedTask("Embed the frontend", workflow.Queue)
 	session := h.connect("claude")
 
+	tools, err := session.ListTools(h.ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var transition *mcp.Tool
+	for _, tool := range tools.Tools {
+		if tool.Name == "transition_task" {
+			transition = tool
+		}
+	}
+	if transition == nil {
+		t.Fatal("no transition_task tool")
+	}
+
+	raw, err := json.Marshal(transition.InputSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema struct {
+		Properties struct {
+			To struct {
+				Enum []string `json:"enum"`
+			} `json:"to"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(schema.Properties.To.Enum, ",")
+	if got != "active,review,blocked" {
+		t.Errorf("to enum = %q, want active,review,blocked", got)
+	}
+	for _, forbidden := range []string{"done", "queue", "backlog"} {
+		if strings.Contains(got, forbidden) {
+			t.Errorf("the enum offers %q, which an agent can never reach", forbidden)
+		}
+	}
+
+	// And the description still says why, since the error no longer can.
+	for _, phrase := range []string{"review -> done", "the human's decisions", "move it to review"} {
+		if !strings.Contains(transition.Description, phrase) {
+			t.Errorf("the description no longer explains the refusal: missing %q", phrase)
+		}
+	}
+
+	// A client ignoring the schema is still refused, just tersely.
 	h.call(session, "transition_task", map[string]any{
 		"ref": "cairn-1", "to": "active",
 		"where_i_left_off": "started", "next_step": "continue",
@@ -331,33 +391,24 @@ func TestTheHumansDecisionsAreRefusedWithAnExplanation(t *testing.T) {
 	h.call(session, "transition_task", map[string]any{
 		"ref": "cairn-1", "to": "review",
 		"where_i_left_off": "finished", "next_step": "please check it",
+		"what_was_tried": "did the work", "outcome": "it builds",
 	}, nil)
-
 	message := h.refusal(session, "transition_task", map[string]any{
 		"ref": "cairn-1", "to": "done",
 		"where_i_left_off": "all done", "next_step": "nothing",
 	})
-	if !strings.Contains(message, "only the human marks work done") {
-		t.Errorf("refusal does not explain itself: %q", message)
-	}
-	if !strings.Contains(message, "review") {
-		t.Errorf("refusal does not say where to leave the task: %q", message)
+	if !strings.Contains(message, "done") {
+		t.Errorf("refusal does not name the offending value: %q", message)
 	}
 
-	// Filing is allowed; queueing what you filed is not.
+	// Filing is still allowed; queueing what you filed is not, and that one is
+	// still refused by the service, with its own words.
 	var filed taskDetailOut
 	h.call(session, "create_task", map[string]any{
 		"project": "cairn", "title": "the vite config needs a comment",
 	}, &filed)
 	if filed.Status != "backlog" {
 		t.Errorf("agent filed straight into %s", filed.Status)
-	}
-	message = h.refusal(session, "transition_task", map[string]any{
-		"ref": filed.Ref, "to": "queue",
-		"where_i_left_off": "filed it", "next_step": "work on it",
-	})
-	if !strings.Contains(message, "only the human decides") {
-		t.Errorf("refusal does not explain itself: %q", message)
 	}
 }
 
@@ -383,6 +434,7 @@ func TestStateIsMandatoryEvenWhenTheSchemaIsIgnored(t *testing.T) {
 	message = h.refusal(session, "transition_task", map[string]any{
 		"ref": "cairn-1", "to": "blocked",
 		"where_i_left_off": "stuck", "next_step": "unstick",
+		"what_was_tried": "looked everywhere",
 	})
 	if !strings.Contains(message, "blocked_on") {
 		t.Errorf("refusal does not name the missing field: %q", message)
@@ -446,5 +498,191 @@ func TestRevokingATokenStopsTheAgent(t *testing.T) {
 	result, err := session.CallTool(h.ctx, &mcp.CallToolParams{Name: "board"})
 	if err == nil && !result.IsError {
 		t.Fatal("a revoked agent could still read the board")
+	}
+}
+
+// Clients decide whether to ask the human before calling a tool by reading
+// these. Without them, reading the board prompts for approval like a deletion.
+func TestToolsDeclareWhatTheyDo(t *testing.T) {
+	h := newHarness(t)
+	session := h.connect("claude")
+
+	tools, err := session.ListTools(h.ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]*mcp.Tool{}
+	for _, tool := range tools.Tools {
+		byName[tool.Name] = tool
+	}
+
+	reads := []string{"board", "list_projects", "list_tasks", "get_task"}
+	for _, name := range reads {
+		a := byName[name].Annotations
+		if a == nil {
+			t.Errorf("%s has no annotations", name)
+			continue
+		}
+		if !a.ReadOnlyHint {
+			t.Errorf("%s is a read but does not say so", name)
+		}
+		if !a.IdempotentHint {
+			t.Errorf("%s is a read but is not marked idempotent", name)
+		}
+	}
+
+	writes := map[string]bool{ // name -> idempotent
+		"write_state": true, "append_worklog": false,
+		"create_task": false, "transition_task": false,
+	}
+	for name, idempotent := range writes {
+		a := byName[name].Annotations
+		if a == nil {
+			t.Errorf("%s has no annotations", name)
+			continue
+		}
+		if a.ReadOnlyHint {
+			t.Errorf("%s writes but claims to be read-only", name)
+		}
+		if a.IdempotentHint != idempotent {
+			t.Errorf("%s idempotent = %v, want %v", name, a.IdempotentHint, idempotent)
+		}
+		// Nothing an agent can reach destroys anything: state is overwritten,
+		// the worklog only grows, and deletion is not exposed over MCP.
+		if a.DestructiveHint == nil || *a.DestructiveHint {
+			t.Errorf("%s is marked destructive; no agent-reachable tool removes anything", name)
+		}
+	}
+}
+
+// The SDK fills the text block with the serialised output when a handler leaves
+// it empty, so every response used to cross the wire twice. The summary is both
+// smaller and more useful than a second copy of the JSON.
+func TestResponsesAreNotSentTwice(t *testing.T) {
+	h := newHarness(t)
+	h.seedTask("Migrate the old invoice importer", workflow.Queue)
+	session := h.connect("claude")
+
+	h.call(session, "transition_task", map[string]any{
+		"ref": "cairn-1", "to": "active",
+		"where_i_left_off": "read the importer", "next_step": "write a fixture",
+	}, nil)
+	for i := 0; i < 6; i++ {
+		h.call(session, "append_worklog", map[string]any{
+			"ref": "cairn-1", "what_was_tried": "a fairly long attempt description number " + string(rune('1'+i)),
+			"outcome": "an equally long outcome, of the sort that makes a payload worth measuring",
+		}, nil)
+	}
+
+	result := h.callRaw(session, "get_task", map[string]any{"ref": "cairn-1"})
+	structured, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary := text(result)
+
+	if summary == "" {
+		t.Fatal("no text content at all; a client that only reads text gets nothing")
+	}
+	if json.Valid([]byte(summary)) && strings.HasPrefix(strings.TrimSpace(summary), "{") {
+		t.Errorf("the text block is still a copy of the JSON: %.80s", summary)
+	}
+	if len(summary) > len(structured)/4 {
+		t.Errorf("summary is %d chars against %d of structured data; that is not a summary",
+			len(summary), len(structured))
+	}
+	// It has to actually say something.
+	for _, want := range []string{"cairn-1", "active"} {
+		if !strings.Contains(summary, want) {
+			t.Errorf("summary %q does not mention %q", summary, want)
+		}
+	}
+}
+
+// A board that returns everything, done included, is a board an agent stops
+// reading. And a truncated one has to admit it.
+func TestBoardDefaultsToOpenWorkAndAdmitsTruncation(t *testing.T) {
+	h := newHarness(t)
+	h.seedTask("still open", workflow.Queue)
+	h.seedTask("also open", workflow.Queue)
+	done := h.seedTaskReturning("finished", workflow.Queue)
+
+	// Walk one task to done through the human.
+	if _, err := h.svc.Transition(h.ctx, h.human, done, service.TransitionInput{
+		To: workflow.Active, State: &service.StateInput{WhereILeftOff: "x", NextStep: "y"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.Transition(h.ctx, h.human, done, service.TransitionInput{
+		To: workflow.Review, State: &service.StateInput{WhereILeftOff: "x", NextStep: "y"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.svc.Transition(h.ctx, h.human, done, service.TransitionInput{To: workflow.Done}); err != nil {
+		t.Fatal(err)
+	}
+
+	session := h.connect("claude")
+
+	var board tasksOut
+	h.call(session, "board", map[string]any{}, &board)
+	if len(board.Tasks) != 2 {
+		t.Errorf("default board returned %d tasks, want 2 (done excluded)", len(board.Tasks))
+	}
+	for _, task := range board.Tasks {
+		if task.Status == "done" {
+			t.Error("done work appeared in the default board")
+		}
+	}
+
+	h.call(session, "board", map[string]any{"status": []string{"done"}}, &board)
+	if len(board.Tasks) != 1 || board.Tasks[0].Status != "done" {
+		t.Errorf("asking for done returned %+v", board.Tasks)
+	}
+
+	h.call(session, "board", map[string]any{"limit": 1}, &board)
+	if len(board.Tasks) != 1 || !board.Truncated {
+		t.Errorf("limited board returned %d tasks, truncated=%v", len(board.Tasks), board.Truncated)
+	}
+
+	message := h.refusal(session, "board", map[string]any{"status": []string{"nonsense"}})
+	if !strings.Contains(message, "nonsense") || !strings.Contains(message, "backlog") {
+		t.Errorf("bad status refusal does not list the real ones: %q", message)
+	}
+}
+
+// A long history is the single biggest thing a task read can cost, and a
+// truncated one that does not say so reads as complete.
+func TestWorklogIsTrimmedButHonest(t *testing.T) {
+	h := newHarness(t)
+	h.seedTask("Migrate the old invoice importer", workflow.Queue)
+	session := h.connect("claude")
+
+	h.call(session, "transition_task", map[string]any{
+		"ref": "cairn-1", "to": "active",
+		"where_i_left_off": "read it", "next_step": "fixture",
+	}, nil)
+	for i := 0; i < 14; i++ {
+		h.call(session, "append_worklog", map[string]any{
+			"ref": "cairn-1", "what_was_tried": "attempt " + string(rune('a'+i)),
+		}, nil)
+	}
+
+	var detail taskDetailOut
+	h.call(session, "get_task", map[string]any{"ref": "cairn-1"}, &detail)
+	if len(detail.Worklog) != 10 {
+		t.Errorf("default worklog returned %d entries, want 10", len(detail.Worklog))
+	}
+	if detail.WorklogTotal != 16 { // filed + claimed + 14 appended
+		t.Errorf("worklog_total = %d, want 16", detail.WorklogTotal)
+	}
+	// The newest, and still in reading order.
+	if last := detail.Worklog[len(detail.Worklog)-1]; last.WhatWasTried != "attempt n" {
+		t.Errorf("last entry is %q, want the newest", last.WhatWasTried)
+	}
+
+	h.call(session, "get_task", map[string]any{"ref": "cairn-1", "worklog_limit": 100}, &detail)
+	if len(detail.Worklog) != 16 {
+		t.Errorf("asking for more returned %d entries, want all 16", len(detail.Worklog))
 	}
 }

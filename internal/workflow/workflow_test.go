@@ -130,14 +130,29 @@ func TestNextFor(t *testing.T) {
 	}
 }
 
+// Every obligation is attached to a move where the task changes hands.
 func TestRequirements(t *testing.T) {
-	if !Requires(Blocked).BlockedOn {
-		t.Error("moving to blocked must require a reason")
+	cases := []struct {
+		from, to Status
+		want     Requirement
+	}{
+		// Picking work up asks nothing beyond the note every agent owes.
+		{Queue, Active, Requirement{ClearsBlockedOn: true}},
+		// Ending a stretch of work: say what you tried.
+		{Active, Review, Requirement{WhatWasTried: true}},
+		{Active, Blocked, Requirement{BlockedOn: true, WhatWasTried: true}},
+		// Resuming after a block clears the stale reason.
+		{Blocked, Active, Requirement{ClearsBlockedOn: true}},
+		// Rejecting work owes the agent a reason, and binds the human too.
+		{Review, Active, Requirement{NextStep: true, ClearsBlockedOn: true}},
+		// The human's own decisions ask nothing.
+		{Backlog, Queue, Requirement{}},
+		{Review, Done, Requirement{}},
+		{Done, Queue, Requirement{}},
 	}
-	if !Requires(Active).ClearsBlockedOn {
-		t.Error("resuming work must clear the stale blocker")
-	}
-	if Requires(Review).BlockedOn || Requires(Review).ClearsBlockedOn {
-		t.Error("review should impose no blocker requirement")
+	for _, tc := range cases {
+		if got := Requires(tc.from, tc.to); got != tc.want {
+			t.Errorf("Requires(%s, %s) = %+v, want %+v", tc.from, tc.to, got, tc.want)
+		}
 	}
 }

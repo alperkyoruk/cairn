@@ -110,7 +110,7 @@ func TestTheTrailAnAgentLeaves(t *testing.T) {
 		t.Fatalf("agent could not block: %v", err)
 	}
 
-	detail, err := f.svc.GetTaskByRef(f.ctx, f.human, "cairn-1")
+	detail, err := f.svc.GetTaskByRef(f.ctx, f.human, "cairn-1", TaskQuery{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,15 +132,16 @@ func TestTheTrailAnAgentLeaves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	detail, _ = f.svc.GetTask(f.ctx, f.agent, f.task)
+	detail, _ = f.svc.GetTask(f.ctx, f.agent, f.task, TaskQuery{})
 	if detail.State.BlockedOn != "" {
 		t.Errorf("blocker survived the return to active: %q", detail.State.BlockedOn)
 	}
 
 	// Handoff. The agent stops at review; it cannot declare its own work done.
 	_, err = f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{
-		To:    workflow.Review,
-		State: &StateInput{WhereILeftOff: "make build embeds dist/", NextStep: "check the binary serves / with no dist on disk"},
+		To:      workflow.Review,
+		State:   &StateInput{WhereILeftOff: "make build embeds dist/", NextStep: "check the binary serves / with no dist on disk"},
+		Worklog: &WorklogInput{WhatWasTried: "moved dist aside and reran the binary", Outcome: "still served the app"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -159,7 +160,7 @@ func TestTheTrailAnAgentLeaves(t *testing.T) {
 	}
 
 	// Every step is on the record, in order, with its author.
-	detail, _ = f.svc.GetTask(f.ctx, f.human, f.task)
+	detail, _ = f.svc.GetTask(f.ctx, f.human, f.task, TaskQuery{})
 	var trail []string
 	for _, e := range detail.Worklog {
 		trail = append(trail, string(e.FromStatus)+">"+string(e.ToStatus)+":"+e.ActorName)
@@ -182,7 +183,7 @@ func TestAnAgentCannotLeaveATaskWithoutWritingState(t *testing.T) {
 	}
 
 	// Nothing was written: the task did not move either.
-	detail, _ := f.svc.GetTask(f.ctx, f.human, f.task)
+	detail, _ := f.svc.GetTask(f.ctx, f.human, f.task, TaskQuery{})
 	if detail.Task.Status != workflow.Queue {
 		t.Errorf("task moved to %s despite the refusal", detail.Task.Status)
 	}
@@ -305,7 +306,7 @@ func TestWhatIsReservedForTheHuman(t *testing.T) {
 	wantKind(t, err, KindForbidden)
 
 	// And an unauthenticated caller gets nowhere at all.
-	_, err = f.svc.Board(f.ctx, Actor{})
+	_, err = f.svc.Board(f.ctx, Actor{}, BoardQuery{})
 	wantKind(t, err, KindUnauthenticated)
 }
 
@@ -318,7 +319,7 @@ func TestDeletingATaskIsTheOnlyWayTheWorklogEnds(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	detail, _ := f.svc.GetTask(f.ctx, f.human, f.task)
+	detail, _ := f.svc.GetTask(f.ctx, f.human, f.task, TaskQuery{})
 	if len(detail.Worklog) != 3 {
 		t.Fatalf("worklog has %d entries, want 3", len(detail.Worklog))
 	}
@@ -326,7 +327,7 @@ func TestDeletingATaskIsTheOnlyWayTheWorklogEnds(t *testing.T) {
 	if err := f.svc.DeleteTask(f.ctx, f.human, f.task); err != nil {
 		t.Fatal(err)
 	}
-	_, err := f.svc.GetTask(f.ctx, f.human, f.task)
+	_, err := f.svc.GetTask(f.ctx, f.human, f.task, TaskQuery{})
 	wantKind(t, err, KindNotFound)
 }
 
@@ -337,7 +338,7 @@ func TestBoardIsSortedByMostRecentlyTouched(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rows, err := f.svc.Board(f.ctx, f.human)
+	rows, err := f.svc.Board(f.ctx, f.human, BoardQuery{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +351,7 @@ func TestBoardIsSortedByMostRecentlyTouched(t *testing.T) {
 
 	// Touching the older task floats it back to the top.
 	f.claim(t)
-	rows, _ = f.svc.Board(f.ctx, f.human)
+	rows, _ = f.svc.Board(f.ctx, f.human, BoardQuery{})
 	if rows[0].Task.ID != f.task {
 		t.Error("claiming a task did not float it to the top of the board")
 	}
@@ -372,7 +373,7 @@ func TestStateCanBeCheckpointedWithoutMoving(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	detail, _ := f.svc.GetTask(f.ctx, f.agent, f.task)
+	detail, _ := f.svc.GetTask(f.ctx, f.agent, f.task, TaskQuery{})
 	if detail.Task.Status != workflow.Active {
 		t.Error("checkpointing moved the task")
 	}
@@ -390,13 +391,13 @@ func TestReadsCarryTheLegalMoves(t *testing.T) {
 	f := newFixture(t)
 	f.claim(t)
 
-	forAgent, _ := f.svc.GetTask(f.ctx, f.agent, f.task)
+	forAgent, _ := f.svc.GetTask(f.ctx, f.agent, f.task, TaskQuery{})
 	// Order matters: the move that carries the work forward comes first, so
 	// the interface can make it the primary button without re-deriving it.
 	if got := forAgent.CanMoveTo; len(got) != 2 || got[0] != workflow.Review || got[1] != workflow.Blocked {
 		t.Errorf("agent sees moves %v, want [review blocked]", got)
 	}
-	forHuman, _ := f.svc.GetTask(f.ctx, f.human, f.task)
+	forHuman, _ := f.svc.GetTask(f.ctx, f.human, f.task, TaskQuery{})
 	if len(forHuman.CanMoveTo) != 2 {
 		t.Errorf("human sees moves %v", forHuman.CanMoveTo)
 	}
@@ -423,7 +424,7 @@ func TestSetupHappensOnceAndPasswordsSurviveARoundTrip(t *testing.T) {
 	if err := f.svc.ResetPassword(f.ctx, "brand-new-password"); err != nil {
 		t.Fatal(err)
 	}
-	_, err = f.svc.Board(f.ctx, f.human) // the Actor is stale, but its token is gone
+	_, err = f.svc.Board(f.ctx, f.human, BoardQuery{}) // the Actor is stale, but its token is gone
 	if err != nil {
 		t.Log("note: stale Actor values keep working until re-authenticated")
 	}
@@ -463,11 +464,11 @@ func TestRevokedAndExpiredCredentials(t *testing.T) {
 func TestTaskRefParsing(t *testing.T) {
 	f := newFixture(t)
 	for _, bad := range []string{"cairn", "cairn-", "-1", "cairn-x", "cairn-0", ""} {
-		if _, err := f.svc.GetTaskByRef(f.ctx, f.human, bad); KindOf(err) != KindInvalid {
+		if _, err := f.svc.GetTaskByRef(f.ctx, f.human, bad, TaskQuery{}); KindOf(err) != KindInvalid {
 			t.Errorf("GetTaskByRef(%q) kind = %s, want invalid", bad, KindOf(err))
 		}
 	}
-	if _, err := f.svc.GetTaskByRef(f.ctx, f.human, "cairn-99"); KindOf(err) != KindNotFound {
+	if _, err := f.svc.GetTaskByRef(f.ctx, f.human, "cairn-99", TaskQuery{}); KindOf(err) != KindNotFound {
 		t.Error("a well-formed reference to a missing task should be not_found")
 	}
 	// Slugs may contain dashes; the split is on the last one.
@@ -478,7 +479,7 @@ func TestTaskRefParsing(t *testing.T) {
 	if _, err := f.svc.CreateTask(f.ctx, f.human, CreateTaskInput{ProjectID: p.ID, Title: "x"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.GetTaskByRef(f.ctx, f.human, "my-app-1"); err != nil {
+	if _, err := f.svc.GetTaskByRef(f.ctx, f.human, "my-app-1", TaskQuery{}); err != nil {
 		t.Errorf("dashed slug did not round-trip: %v", err)
 	}
 }
@@ -545,5 +546,86 @@ func TestTokenPrefixIdentifiesTheSecretWithoutRevealingIt(t *testing.T) {
 	// The two tokens must actually be distinguishable, which is the point.
 	if tokens[0].Prefix == tokens[1].Prefix {
 		t.Error("two tokens for the same agent share a prefix")
+	}
+}
+
+// Handing work back is a rejection, and a rejection with no reason leaves the
+// agent re-reading the note it wrote itself. This one binds the human too.
+func TestSendingWorkBackRequiresAReason(t *testing.T) {
+	f := newFixture(t)
+	f.claim(t)
+	if _, err := f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{
+		To:      workflow.Review,
+		State:   &StateInput{WhereILeftOff: "done as asked", NextStep: "check it"},
+		Worklog: &WorklogInput{WhatWasTried: "did the thing", Outcome: "it worked"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Bare rejection, the way the interface used to allow.
+	_, err := f.svc.Transition(f.ctx, f.human, f.task, TransitionInput{To: workflow.Active})
+	wantKind(t, err, KindInvalid)
+	if !strings.Contains(err.Error(), "next_step") {
+		t.Errorf("refusal does not name the missing field: %v", err)
+	}
+
+	// An empty one is no better.
+	_, err = f.svc.Transition(f.ctx, f.human, f.task, TransitionInput{
+		To:    workflow.Active,
+		State: &StateInput{WhereILeftOff: "reviewed it", NextStep: "   "},
+	})
+	wantKind(t, err, KindInvalid)
+
+	// With a reason it goes through, and the agent finds the human's words.
+	if _, err := f.svc.Transition(f.ctx, f.human, f.task, TransitionInput{
+		To: workflow.Active,
+		State: &StateInput{
+			WhereILeftOff: "reviewed; the embed works but the binary still reads dist from disk",
+			NextStep:      "move web/dist aside and confirm the binary still serves the app",
+		},
+	}); err != nil {
+		t.Fatalf("rejection with a reason was refused: %v", err)
+	}
+	detail, _ := f.svc.GetTask(f.ctx, f.agent, f.task, TaskQuery{})
+	if detail.State.NextStep != "move web/dist aside and confirm the binary still serves the app" {
+		t.Errorf("the agent does not see the human's reason: %q", detail.State.NextStep)
+	}
+	if detail.State.UpdatedByName != "alper" {
+		t.Errorf("the rejection is credited to %q", detail.State.UpdatedByName)
+	}
+}
+
+// Leaving active is the end of a stretch of work: what is not recorded then is
+// not recorded at all.
+func TestLeavingActiveRequiresTheAttempt(t *testing.T) {
+	f := newFixture(t)
+	f.claim(t)
+
+	state := &StateInput{WhereILeftOff: "got somewhere", NextStep: "carry on"}
+	_, err := f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{To: workflow.Review, State: state})
+	wantKind(t, err, KindInvalid)
+	if !strings.Contains(err.Error(), "what_was_tried") {
+		t.Errorf("refusal does not name the missing field: %v", err)
+	}
+
+	blocked := &StateInput{WhereILeftOff: "stuck", NextStep: "unstick", BlockedOn: "need credentials"}
+	_, err = f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{To: workflow.Blocked, State: blocked})
+	wantKind(t, err, KindInvalid)
+
+	// The human moving their own work around is not held to it, for the same
+	// reason they are not held to writing state.
+	if _, err := f.svc.Transition(f.ctx, f.human, f.task, TransitionInput{To: workflow.Review}); err != nil {
+		t.Fatalf("human blocked from moving a task without a worklog entry: %v", err)
+	}
+}
+
+// Picking work up is not the end of anything, so it asks for nothing extra.
+func TestClaimingWorkStillAsksOnlyForTheNote(t *testing.T) {
+	f := newFixture(t)
+	if _, err := f.svc.Transition(f.ctx, f.agent, f.task, TransitionInput{
+		To:    workflow.Active,
+		State: &StateInput{WhereILeftOff: "picked this up", NextStep: "read the docs"},
+	}); err != nil {
+		t.Fatalf("claiming queued work now demands more than it should: %v", err)
 	}
 }

@@ -44,6 +44,25 @@ type TaskDetail struct {
 	State     *model.State
 	Worklog   []model.WorklogEntry
 	CanMoveTo []workflow.Status
+
+	// WorklogTotal is how many entries exist, which differs from len(Worklog)
+	// when the caller asked for only the most recent ones. A truncated history
+	// that does not say it is truncated reads as a complete one.
+	WorklogTotal int
+}
+
+// BoardQuery narrows a task listing. Both fields are optional: the web
+// interface asks for everything, because scrolling is free, while the MCP
+// surface asks for a slice, because a few hundred tasks is a meaningful
+// fraction of an agent's context window.
+type BoardQuery struct {
+	Statuses []workflow.Status // empty means every status
+	Limit    int               // zero means no limit
+}
+
+// TaskQuery narrows a single task's detail.
+type TaskQuery struct {
+	WorklogLimit int // zero means the whole history
 }
 
 type CreateTaskInput struct {
@@ -191,7 +210,7 @@ func (s *Service) Transition(ctx context.Context, actor Actor, taskID string, in
 		}
 
 		// What the move demands of the caller.
-		req := workflow.Requires(in.To)
+		req := workflow.Requires(task.Status, in.To)
 		state := in.State
 		if actor.IsAgent() && state == nil {
 			return invalid("moving %s requires state: an agent cannot leave a task without "+
@@ -209,6 +228,24 @@ func (s *Service) Transition(ctx context.Context, actor Actor, taskID string, in
 			if state == nil || strings.TrimSpace(state.BlockedOn) == "" {
 				return invalid("moving %s to blocked requires state.blocked_on; a task parked "+
 					"in blocked with no stated blocker is a dead end", task.Ref())
+			}
+		}
+		// Rejecting work binds the human as well. Sending a task back with no
+		// reason leaves the agent re-reading its own note, with nothing to say
+		// what was wrong with the work it just handed over.
+		if req.NextStep {
+			if state == nil || strings.TrimSpace(state.NextStep) == "" {
+				return invalid("sending %s back to active requires state.next_step; say what "+
+					"needs to be different, or the agent picks it up reading its own last note",
+					task.Ref())
+			}
+		}
+		// Leaving active is the end of a stretch of work. What is not recorded
+		// at that moment does not get recorded afterwards.
+		if req.WhatWasTried && actor.IsAgent() {
+			if in.Worklog == nil || strings.TrimSpace(in.Worklog.WhatWasTried) == "" {
+				return invalid("moving %s out of active requires worklog.what_was_tried; "+
+					"record the attempt now, including what did not work", task.Ref())
 			}
 		}
 
@@ -360,7 +397,7 @@ func (s *Service) AppendWorklog(ctx context.Context, actor Actor, taskID string,
 
 // --- reads ------------------------------------------------------------------
 
-func (s *Service) GetTask(ctx context.Context, actor Actor, taskID string) (TaskDetail, error) {
+func (s *Service) GetTask(ctx context.Context, actor Actor, taskID string, q TaskQuery) (TaskDetail, error) {
 	if err := s.authorize(actor, OpRead); err != nil {
 		return TaskDetail{}, err
 	}
@@ -371,11 +408,11 @@ func (s *Service) GetTask(ctx context.Context, actor Actor, taskID string) (Task
 	if err != nil {
 		return TaskDetail{}, internal(err)
 	}
-	return s.detail(ctx, actor, task)
+	return s.detail(ctx, actor, task, q)
 }
 
 // GetTaskByRef looks a task up the way it gets talked about: "cairn-12".
-func (s *Service) GetTaskByRef(ctx context.Context, actor Actor, ref string) (TaskDetail, error) {
+func (s *Service) GetTaskByRef(ctx context.Context, actor Actor, ref string, q TaskQuery) (TaskDetail, error) {
 	if err := s.authorize(actor, OpRead); err != nil {
 		return TaskDetail{}, err
 	}
@@ -390,10 +427,10 @@ func (s *Service) GetTaskByRef(ctx context.Context, actor Actor, ref string) (Ta
 	if err != nil {
 		return TaskDetail{}, internal(err)
 	}
-	return s.detail(ctx, actor, task)
+	return s.detail(ctx, actor, task, q)
 }
 
-func (s *Service) detail(ctx context.Context, actor Actor, task model.Task) (TaskDetail, error) {
+func (s *Service) detail(ctx context.Context, actor Actor, task model.Task, q TaskQuery) (TaskDetail, error) {
 	d := TaskDetail{Task: task, CanMoveTo: workflow.NextFor(actor.typ, task.Status)}
 
 	state, err := store.GetState(ctx, s.read(), task.ID)
@@ -403,17 +440,20 @@ func (s *Service) detail(ctx context.Context, actor Actor, task model.Task) (Tas
 		return TaskDetail{}, internal(err)
 	}
 
-	if d.Worklog, err = store.ListWorklog(ctx, s.read(), task.ID); err != nil {
+	if d.Worklog, err = store.ListWorklog(ctx, s.read(), task.ID, q.WorklogLimit); err != nil {
+		return TaskDetail{}, internal(err)
+	}
+	if d.WorklogTotal, err = store.CountWorklog(ctx, s.read(), task.ID); err != nil {
 		return TaskDetail{}, internal(err)
 	}
 	return d, nil
 }
 
-func (s *Service) ListTasks(ctx context.Context, actor Actor, projectID string) ([]model.Task, error) {
+func (s *Service) ListTasks(ctx context.Context, actor Actor, projectID string, q BoardQuery) ([]model.Task, error) {
 	if err := s.authorize(actor, OpRead); err != nil {
 		return nil, err
 	}
-	tasks, err := store.ListTasksByProject(ctx, s.read(), projectID)
+	tasks, err := store.ListTasksByProject(ctx, s.read(), projectID, q.Statuses, q.Limit)
 	if err != nil {
 		return nil, internal(err)
 	}
@@ -422,11 +462,11 @@ func (s *Service) ListTasks(ctx context.Context, actor Actor, projectID string) 
 
 // Board is the cross-project main screen: every task, most recently touched
 // first, each with the note left on it.
-func (s *Service) Board(ctx context.Context, actor Actor) ([]model.BoardRow, error) {
+func (s *Service) Board(ctx context.Context, actor Actor, q BoardQuery) ([]model.BoardRow, error) {
 	if err := s.authorize(actor, OpRead); err != nil {
 		return nil, err
 	}
-	rows, err := store.Board(ctx, s.read())
+	rows, err := store.Board(ctx, s.read(), q.Statuses, q.Limit)
 	if err != nil {
 		return nil, internal(err)
 	}
@@ -500,11 +540,11 @@ func parseRef(ref string) (string, int, error) {
 // short reference people and agents actually use, like "cairn-12". Both the
 // HTTP routes and the MCP tools accept either, so the rule for reading one
 // lives here rather than in each surface.
-func (s *Service) LookupTask(ctx context.Context, actor Actor, idOrRef string) (TaskDetail, error) {
+func (s *Service) LookupTask(ctx context.Context, actor Actor, idOrRef string, q TaskQuery) (TaskDetail, error) {
 	if looksLikeID(idOrRef) {
-		return s.GetTask(ctx, actor, idOrRef)
+		return s.GetTask(ctx, actor, idOrRef, q)
 	}
-	return s.GetTaskByRef(ctx, actor, idOrRef)
+	return s.GetTaskByRef(ctx, actor, idOrRef, q)
 }
 
 // looksLikeID distinguishes a UUID from a task reference. Both contain dashes,

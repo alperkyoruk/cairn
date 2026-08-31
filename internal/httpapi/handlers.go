@@ -107,7 +107,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 // --- board ------------------------------------------------------------------
 
 func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, actor service.Actor) {
-	rows, err := s.svc.Board(r.Context(), actor)
+	rows, err := s.svc.Board(r.Context(), actor, service.BoardQuery{})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -203,7 +203,7 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request, actor s
 		writeError(w, err)
 		return
 	}
-	tasks, err := s.svc.ListTasks(r.Context(), actor, p.ID)
+	tasks, err := s.svc.ListTasks(r.Context(), actor, p.ID, service.BoardQuery{})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -242,7 +242,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request, actor 
 }
 
 func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request, actor service.Actor) {
-	detail, err := s.svc.LookupTask(r.Context(), actor, r.PathValue("ref"))
+	detail, err := s.svc.LookupTask(r.Context(), actor, r.PathValue("ref"), service.TaskQuery{})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -423,7 +423,7 @@ func (s *Server) handleRevokeToken(w http.ResponseWriter, r *http.Request, actor
 // caller may make next. Every mutation answers with this, so the interface
 // never has to guess what changed or re-derive which buttons to show.
 func (s *Server) respondWithTask(w http.ResponseWriter, r *http.Request, actor service.Actor, id string) {
-	detail, err := s.svc.GetTask(r.Context(), actor, id)
+	detail, err := s.svc.GetTask(r.Context(), actor, id, service.TaskQuery{})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -432,7 +432,7 @@ func (s *Server) respondWithTask(w http.ResponseWriter, r *http.Request, actor s
 }
 
 func (s *Server) resolveTaskID(r *http.Request, actor service.Actor) (string, error) {
-	detail, err := s.svc.LookupTask(r.Context(), actor, r.PathValue("ref"))
+	detail, err := s.svc.LookupTask(r.Context(), actor, r.PathValue("ref"), service.TaskQuery{})
 	if err != nil {
 		return "", err
 	}

@@ -50,6 +50,19 @@ or a lint rule. The only function in the codebase that writes a task's status
 takes the note as an argument, and status, state and worklog are written in one
 transaction or not at all. There is no code path that moves a task and forgets.
 
+Handing a task to somebody else obliges you to say why, and that obligation is
+attached to the move rather than to the actor:
+
+| move | demands |
+|---|---|
+| anything → `blocked` | `blocked_on`, of anyone |
+| `active` → `review` or `blocked` | `what_was_tried`, of agents |
+| `review` → `active` | `next_step`, **of anyone, including you** |
+
+The last one is the human's own obligation. Sending work back is a rejection,
+and a rejection with no reason leaves the agent re-reading the note it wrote
+itself, guessing what was wrong with it.
+
 ## The workflow
 
 ```
@@ -232,7 +245,14 @@ For a client configured by file:
 
 Every task read includes `can_move_to` — the statuses that actor may move it to
 from where it is now, forward-most first — so an agent never has to guess at a
-transition and burn a turn being refused.
+transition and burn a turn being refused. `transition_task` goes further and
+enumerates the legal destinations in its own schema, so a client cannot even
+form a call the server would refuse.
+
+Listings default to open work and cap at fifty rows, and a task read returns the
+ten most recent worklog entries with `worklog_total` saying how many exist.
+Every response also carries a one-line summary rather than a second copy of
+itself, which is what the SDK would otherwise put in the text block.
 
 Refusals explain themselves, because an agent reads an error the way a person
 reads documentation:

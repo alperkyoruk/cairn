@@ -117,8 +117,17 @@ func bearer(header http.Header) string {
 // bind registers a tool whose handler cannot run without an authenticated
 // actor. As in the HTTP layer, identity is an argument rather than something
 // the handler fetches, so a tool cannot be written that forgets to check.
+//
+// summarise turns the result into one line of prose. Supplying it is not
+// cosmetic: when a handler leaves Content empty the SDK fills it with the
+// serialised output, so every response crosses the wire twice -- once as JSON
+// in structuredContent and once as the identical JSON in a text block. On a
+// task with a few worklog entries that is about half the payload, spent
+// telling the model something it already has. A sentence is more useful and
+// costs a fortieth of the tokens.
 func bind[In, Out any](s *server, srv *mcp.Server, tool *mcp.Tool,
-	fn func(context.Context, service.Actor, In) (Out, error)) {
+	fn func(context.Context, service.Actor, In) (Out, error),
+	summarise func(Out) string) {
 
 	mcp.AddTool(srv, tool, func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
 		var zero Out
@@ -139,6 +148,30 @@ func bind[In, Out any](s *server, srv *mcp.Server, tool *mcp.Tool,
 			// through unchanged is the whole point.
 			return nil, zero, err
 		}
-		return nil, out, nil
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: summarise(out)}},
+		}, out, nil
 	})
+}
+
+// readOnly and mutating describe a tool to clients that decide whether to ask
+// the human before calling it. Without them a client has to assume the worst,
+// and reading the board prompts for approval like a deletion would.
+func readOnly() *mcp.ToolAnnotations {
+	no := false
+	return &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &no}
+}
+
+// mutating describes a write. destructive is false throughout: nothing an agent
+// can reach removes anything -- state is overwritten, the worklog only grows,
+// and deletion is the human's alone and not exposed over MCP at all.
+func mutating(idempotent bool) *mcp.ToolAnnotations {
+	no := false
+	return &mcp.ToolAnnotations{
+		ReadOnlyHint:    false,
+		DestructiveHint: &no,
+		IdempotentHint:  idempotent,
+		OpenWorldHint:   &no,
+	}
 }

@@ -152,26 +152,58 @@ var progressRank = map[Status]int{
 	Done: 1, Review: 2, Active: 3, Queue: 4, Blocked: 5, Backlog: 6,
 }
 
-// Requirement describes what a transition into a status demands of the caller
-// beyond permission. These are checked by the service layer, which is the only
-// code that can see the payload.
+// Requirement describes what a transition demands of the caller beyond
+// permission. These are checked by the service layer, which is the only code
+// that can see the payload.
+//
+// The organising idea is that handing a task to somebody else obliges you to
+// say why. Every field below marks a move where the task changes hands.
 type Requirement struct {
-	// BlockedOn requires a non-empty reason: a task parked in blocked with no
-	// stated blocker is the exact dead end Cairn exists to prevent.
+	// BlockedOn requires a non-empty reason, of anyone. A task parked in
+	// blocked with no stated blocker is the exact dead end Cairn exists to
+	// prevent.
 	BlockedOn bool
+
+	// NextStep requires a non-empty next step, of anyone including the human.
+	// It marks the moves that hand work back to an agent: sending a task from
+	// review to active is a rejection, and a rejection with no reason leaves
+	// the agent re-reading its own note and guessing what was wrong with it.
+	NextStep bool
+
+	// WhatWasTried requires a worklog entry, of agents. It marks the end of a
+	// stretch of work -- what is not written down at that moment is not
+	// written down later, and the dead ends are the point of the worklog.
+	WhatWasTried bool
+
 	// ClearsBlockedOn wipes any stale blocker when work resumes.
 	ClearsBlockedOn bool
 }
 
-// Requires reports what entering the given status demands.
-func Requires(to Status) Requirement {
+// Requires reports what a particular move demands. It takes both ends because
+// the obligation belongs to the transition, not to the destination: arriving in
+// active from queue is picking work up, and arriving there from review is
+// handing it back.
+func Requires(from, to Status) Requirement {
+	var r Requirement
+
 	switch to {
 	case Blocked:
-		return Requirement{BlockedOn: true}
+		r.BlockedOn = true
 	case Active:
-		return Requirement{ClearsBlockedOn: true}
+		r.ClearsBlockedOn = true
 	}
-	return Requirement{}
+
+	// The human rejecting work owes the agent a reason.
+	if from == Review && to == Active {
+		r.NextStep = true
+	}
+
+	// Leaving active is the end of a stretch of work, in either direction.
+	if from == Active && (to == Review || to == Blocked) {
+		r.WhatWasTried = true
+	}
+
+	return r
 }
 
 // Reason classifies why a transition was refused. The distinction between "that
