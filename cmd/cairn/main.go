@@ -66,9 +66,24 @@ func run(dbPath, addr string, secureCookies, reset bool) error {
 func serve(ctx context.Context, svc *service.Service, addr string, secureCookies bool) error {
 	// The two surfaces are peers, not one nested inside the other: the browser
 	// and the agents reach the same service layer by different doors.
+	needsSetup, err := svc.NeedsSetup(ctx)
+	if err != nil {
+		return err
+	}
+
+	// A server anyone can reach must not let anyone claim it. The code is
+	// minted per process and only when there is still no user, so it never
+	// appears again once setup is done.
+	var setupCode string
+	if needsSetup && !httpapi.ListenerIsLocalOnly(addr) {
+		setupCode = httpapi.NewSetupCode()
+	}
+
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", mcpserver.New(svc, version))
-	mux.Handle("/", httpapi.New(svc, web.Handler(), httpapi.WithSecureCookies(secureCookies)))
+	mux.Handle("/", httpapi.New(svc, web.Handler(),
+		httpapi.WithSecureCookies(secureCookies),
+		httpapi.WithSetupCode(setupCode)))
 
 	srv := &http.Server{
 		Addr:              addr,
@@ -76,14 +91,21 @@ func serve(ctx context.Context, svc *service.Service, addr string, secureCookies
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	needsSetup, err := svc.NeedsSetup(ctx)
-	if err != nil {
-		return err
-	}
 	fmt.Printf("cairn: listening on http://%s\n", addr)
 	fmt.Printf("cairn: agents connect to http://%s/mcp\n", addr)
 	if needsSetup {
 		fmt.Println("cairn: no user yet — open that address to choose a username and password")
+	}
+	if setupCode != "" {
+		fmt.Println()
+		fmt.Println("  This server is reachable from other machines, so first-launch setup")
+		fmt.Println("  needs the code below. Without it, whoever opens the URL first would")
+		fmt.Println("  own this tracker.")
+		fmt.Println()
+		fmt.Printf("      setup code:  %s\n", setupCode)
+		fmt.Println()
+		fmt.Println("  It is valid until someone completes setup, and a restart mints a new one.")
+		fmt.Println()
 	}
 	if !web.Built() {
 		fmt.Println("cairn: warning — no frontend in this binary; the API works, the web interface does not")

@@ -173,6 +173,27 @@ because the frontend is built rather than committed — use a release binary or
 | `-secure-cookies` | `false` | mark the session cookie `Secure`; set this behind HTTPS |
 | `-reset-password` | | set a new password and revoke every session |
 
+### First launch on a server
+
+Creating the one user is necessarily unauthenticated -- there is nobody to
+authenticate as yet. On your own machine that is fine. On a server with a domain
+pointed at it, it would mean whoever opens the URL first owns the tracker.
+
+So when Cairn is listening on anything other than loopback, it prints a setup
+code on startup and first-launch setup asks for it:
+
+```
+  This server is reachable from other machines, so first-launch setup
+  needs the code below.
+
+      setup code:  kf9d-2mqx-7rvt-a4bn
+```
+
+`docker logs cairn`, or the terminal it is running in. It is valid until someone
+completes setup, a restart mints a new one, and guessing it is throttled exactly
+like guessing a password. Running `./cairn` on your laptop binds loopback and
+asks for nothing.
+
 ### Behind a reverse proxy
 
 Cairn does not terminate TLS. It is a single-user tool that expects to sit behind

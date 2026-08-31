@@ -33,7 +33,8 @@ async function request(method, path, body) {
 
 export const api = {
   session: () => request('GET', '/session'),
-  setup: (username, password) => request('POST', '/setup', { username, password }),
+  setup: (username, password, setup_code) =>
+    request('POST', '/setup', { username, password, setup_code }),
   login: (username, password) => request('POST', '/login', { username, password }),
   logout: () => request('POST', '/logout'),
 

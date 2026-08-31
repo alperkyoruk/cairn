@@ -1,11 +1,12 @@
 <script setup>
 import { ref } from 'vue'
 import { api } from '../api.js'
-import { adopt } from '../session.js'
+import { adopt, session } from '../session.js'
 import CairnMark from '../components/icons/CairnMark.vue'
 
 const username = ref('')
 const password = ref('')
+const setupCode = ref('')
 const failure = ref('')
 const busy = ref(false)
 
@@ -13,7 +14,7 @@ async function submit() {
   failure.value = ''
   busy.value = true
   try {
-    adopt(await api.setup(username.value, password.value))
+    adopt(await api.setup(username.value, password.value, setupCode.value))
   } catch (err) {
     failure.value = err.message
   } finally {

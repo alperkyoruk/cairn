@@ -9,6 +9,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -75,6 +76,12 @@ func (h *harness) decode(resp *http.Response, v any) {
 	if v == nil {
 		return
 	}
+	// Zero the target first. Several fields are omitempty, so decoding into a
+	// reused variable would leave a stale true standing where the server
+	// deliberately sent nothing -- which reads as a product bug and is not one.
+	rv := reflect.ValueOf(v).Elem()
+	rv.Set(reflect.Zero(rv.Type()))
+
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
 		h.t.Fatalf("decoding %s: %v", resp.Request.URL, err)
 	}
@@ -454,5 +461,133 @@ func TestTheThrottleWindowExpires(t *testing.T) {
 	now = now.Add(5*time.Minute + time.Second)
 	if !tr.allow() {
 		t.Error("still throttled after the window passed")
+	}
+}
+
+// A fresh Cairn on a public address must not be claimable by whoever finds the
+// URL first. Setup is necessarily unauthenticated -- there is nobody to
+// authenticate as -- so it is gated on a code the server printed to its log.
+func TestAFreshServerCannotBeClaimedByAStranger(t *testing.T) {
+	svc, err := service.Open(context.Background(), filepath.Join(t.TempDir(), "cairn.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { svc.Close() })
+
+	const code = "kf9d-2mqx-7rvt-a4bn"
+	srv := httptest.NewServer(New(svc, nil, WithSetupCode(code)))
+	t.Cleanup(srv.Close)
+	jar, _ := cookiejar.New(nil)
+	h := &harness{t: t, server: srv, human: &http.Client{Jar: jar}, svc: svc}
+
+	// The screen is told to ask, but never told what to ask for.
+	var session sessionDTO
+	resp := h.do("GET", "/api/session", nil, "")
+	h.decode(resp, &session)
+	if !session.NeedsSetupCode {
+		t.Error("the setup screen was not told to ask for a code")
+	}
+	body, _ := json.Marshal(session)
+	if strings.Contains(string(body), code) {
+		t.Fatal("the session response leaks the setup code")
+	}
+
+	// A stranger, with nothing.
+	resp = h.do("POST", "/api/setup", map[string]string{
+		"username": "not-the-owner", "password": "i-got-here-first",
+	}, "")
+	h.wantStatus(resp, http.StatusForbidden)
+	var failure errorBody
+	h.decode(resp, &failure)
+	if !strings.Contains(failure.Error.Message, "log") {
+		t.Errorf("refusal does not say where to find the code: %q", failure.Error.Message)
+	}
+
+	// A stranger, guessing.
+	resp = h.do("POST", "/api/setup", map[string]string{
+		"username": "not-the-owner", "password": "i-got-here-first",
+		"setup_code": "aaaa-bbbb-cccc-dddd",
+	}, "")
+	h.wantStatus(resp, http.StatusForbidden)
+	resp.Body.Close()
+
+	// Nobody has been created by any of that.
+	resp = h.do("GET", "/api/session", nil, "")
+	h.decode(resp, &session)
+	if !session.NeedsSetup {
+		t.Fatal("a failed attempt still created a user")
+	}
+
+	// The owner, reading their own log. Case and stray spaces are forgiven.
+	resp = h.do("POST", "/api/setup", map[string]string{
+		"username": "alper", "password": "correct-horse", "setup_code": "  KF9D-2MQX-7RVT-A4BN ",
+	}, "")
+	h.wantStatus(resp, http.StatusOK)
+	h.decode(resp, &session)
+	if session.Actor == nil || session.Actor.Name != "alper" {
+		t.Fatalf("the owner was not signed in: %+v", session)
+	}
+	if session.NeedsSetupCode {
+		t.Error("the code is still being asked for after setup")
+	}
+}
+
+// Guessing the code has to cost what guessing a password costs.
+func TestSetupCodeGuessesAreThrottled(t *testing.T) {
+	svc, err := service.Open(context.Background(), filepath.Join(t.TempDir(), "cairn.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { svc.Close() })
+
+	srv := httptest.NewServer(New(svc, nil, WithSetupCode("kf9d-2mqx-7rvt-a4bn")))
+	t.Cleanup(srv.Close)
+	jar, _ := cookiejar.New(nil)
+	h := &harness{t: t, server: srv, human: &http.Client{Jar: jar}, svc: svc}
+
+	for i := 0; i < signInLimit; i++ {
+		resp := h.do("POST", "/api/setup", map[string]string{
+			"username": "x", "password": "yyyyyyyy", "setup_code": "wrong",
+		}, "")
+		resp.Body.Close()
+	}
+	resp := h.do("POST", "/api/setup", map[string]string{
+		"username": "x", "password": "yyyyyyyy", "setup_code": "wrong",
+	}, "")
+	h.wantStatus(resp, http.StatusTooManyRequests)
+	resp.Body.Close()
+}
+
+// The code is only demanded where it is needed. Running cairn on a laptop must
+// not turn first launch into a scavenger hunt through the terminal.
+func TestOnlyRemotelyReachableServersDemandACode(t *testing.T) {
+	local := []string{"127.0.0.1:7777", "localhost:7777", "[::1]:7777", "127.0.0.1"}
+	for _, addr := range local {
+		if !ListenerIsLocalOnly(addr) {
+			t.Errorf("%q should be treated as local-only", addr)
+		}
+	}
+	remote := []string{":7777", "0.0.0.0:7777", "192.168.1.10:7777", "[::]:7777"}
+	for _, addr := range remote {
+		if ListenerIsLocalOnly(addr) {
+			t.Errorf("%q is reachable from elsewhere and should demand a code", addr)
+		}
+	}
+}
+
+func TestSetupCodesAreDistinctAndReadable(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 200; i++ {
+		code := NewSetupCode()
+		if len(code) != 19 { // four groups of four, three dashes
+			t.Fatalf("code %q is %d chars", code, len(code))
+		}
+		if strings.ContainsAny(code, "ilo01") {
+			t.Errorf("code %q contains a character that is misread when copied", code)
+		}
+		if seen[code] {
+			t.Fatalf("duplicate code %q", code)
+		}
+		seen[code] = true
 	}
 }

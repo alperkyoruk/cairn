@@ -19,7 +19,7 @@ func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	out := sessionDTO{NeedsSetup: needsSetup}
+	out := sessionDTO{NeedsSetup: needsSetup, NeedsSetupCode: needsSetup && s.setupCode != ""}
 	if actor, err := s.svc.Authenticate(r.Context(), credential(r)); err == nil {
 		out.Actor = toActor(actor)
 	}
@@ -27,8 +27,9 @@ func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
 }
 
 type credentialsBody struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username  string `json:"username"`
+	Password  string `json:"password"`
+	SetupCode string `json:"setup_code,omitempty"`
 }
 
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +44,18 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	}
 	if !s.signIn.allow() {
 		writeThrottled(w, s.signIn.retryAfter())
+		return
+	}
+	// Checked before the password is hashed, and counted against the same
+	// throttle as a failed sign-in, so guessing it is as slow as guessing a
+	// password.
+	if !s.matchesSetupCode(in.SetupCode) {
+		s.signIn.fail()
+		writeError(w, &service.Error{
+			Kind: service.KindForbidden,
+			Msg: "this server needs the setup code it printed on startup. " +
+				"Run `docker logs cairn` or look at the terminal it is running in.",
+		})
 		return
 	}
 	if _, err := s.svc.Setup(r.Context(), in.Username, in.Password); err != nil {

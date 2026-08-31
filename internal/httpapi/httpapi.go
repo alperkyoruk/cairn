@@ -28,14 +28,20 @@ const (
 )
 
 type Server struct {
-	svc    *service.Service
-	assets http.Handler
-	mux    *http.ServeMux
-	secure bool
-	signIn *throttle
+	svc       *service.Service
+	assets    http.Handler
+	mux       *http.ServeMux
+	secure    bool
+	signIn    *throttle
+	setupCode string
 }
 
 type Option func(*Server)
+
+// WithSetupCode requires the code before first-launch setup will run. Set it
+// when the server is reachable from anywhere but this machine, so that a fresh
+// instance cannot be claimed by whoever finds the URL first.
+func WithSetupCode(code string) Option { return func(s *Server) { s.setupCode = code } }
 
 // WithSecureCookies marks the session cookie Secure. Off by default because
 // Cairn is usually reached over plain HTTP on a private network or localhost,

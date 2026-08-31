@@ -22,6 +22,9 @@ type actorDTO struct {
 type sessionDTO struct {
 	NeedsSetup bool      `json:"needs_setup"`
 	Actor      *actorDTO `json:"actor"`
+	// NeedsSetupCode tells the setup screen to ask for the code the server
+	// printed on startup. It never carries the code itself.
+	NeedsSetupCode bool `json:"needs_setup_code,omitempty"`
 }
 
 type projectDTO struct {
