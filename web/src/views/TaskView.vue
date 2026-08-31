@@ -95,6 +95,33 @@ function startMove(to) {
   move(to)
 }
 
+// The human's own worklog entry, written without moving the task.
+//
+// Every sentence the human wrote used to go to state, the one record designed
+// to be overwritten, and the append-only trail held only status arrows from
+// them. cairn-2 fixed that for a rejection; this is the rest of it, and it is
+// the same act an agent performs when it reviews work it did not do.
+//
+// Deliberately NOT a state edit. Letting the human write state outside a move
+// would put back the clobbering that cairn-2 removed: state is one note, and
+// the agent's account of what it did lives in it.
+const recording = ref(false)
+const record = ref({ what_was_tried: '', outcome: '' })
+
+async function appendWorklog() {
+  failure.value = ''
+  busy.value = true
+  try {
+    detail.value = await api.appendWorklog(props.taskRef, { ...record.value })
+    record.value = { what_was_tried: '', outcome: '' }
+    recording.value = false
+  } catch (err) {
+    failure.value = err.message
+  } finally {
+    busy.value = false
+  }
+}
+
 async function move(to) {
   failure.value = ''
   busy.value = true
@@ -191,6 +218,44 @@ watch(() => props.taskRef, load)
 
       <StatePanel :state="detail.state" :status="detail.task.status" :agents="agents" />
       <Worklog :entries="detail.worklog" :agents="agents" />
+
+      <!-- Under the worklog, because it appends to it. A separate act rather
+           than fields hung off every move: the moves are the fast path and
+           should stay fast, and most of them have nothing to record. -->
+      <button v-if="!recording" class="btn btn-ghost record" @click="recording = true">
+        Record what you found
+      </button>
+
+      <form v-else class="record-form" @submit.prevent="appendWorklog">
+        <div class="field">
+          <label class="field-label" for="w-tried">What you did</label>
+          <textarea
+            id="w-tried"
+            v-model="record.what_was_tried"
+            class="input"
+            rows="2"
+            placeholder="What you actually did, in enough detail that someone repeating it would recognise it"
+            autofocus
+          />
+        </div>
+        <div class="field">
+          <label class="field-label" for="w-outcome">What happened</label>
+          <textarea
+            id="w-outcome"
+            v-model="record.outcome"
+            class="input"
+            rows="2"
+            placeholder="Including anything that did not work — that is what the next reader needs"
+          />
+        </div>
+        <div class="row">
+          <button class="btn btn-primary" type="submit" :disabled="busy || !record.what_was_tried.trim()">
+            Append to worklog
+          </button>
+          <button class="btn btn-secondary" type="button" @click="recording = false">Cancel</button>
+          <span class="note">Append-only. This cannot be edited or removed afterwards.</span>
+        </div>
+      </form>
     </div>
 
     <!-- Actions live in the rail, not inline, so the reading order stays
@@ -291,7 +356,14 @@ h1 {
 }
 
 .edit { display: flex; flex-direction: column; gap: var(--s-3); margin-bottom: var(--s-8); }
-.row { display: flex; gap: var(--s-3); }
+.row { display: flex; gap: var(--s-3); align-items: center; }
+
+/* Sits under the worklog and stays quiet until wanted: recording something is
+   deliberate, and this is not the reason most visits happen. */
+.record { margin-top: var(--s-4); padding-left: 0; }
+.record-form { margin-top: var(--s-6); max-width: 620px; }
+.record-form .field { margin-bottom: var(--s-4); }
+.record-form .note { font-size: var(--t-sm); color: var(--text-faint); }
 
 .moveform { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-6); }
 .moveform .field { margin-bottom: var(--s-2); }
