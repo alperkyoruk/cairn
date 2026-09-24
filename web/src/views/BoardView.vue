@@ -1,8 +1,9 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api.js'
 import TaskCard from '../components/TaskCard.vue'
+import TaskDrawer from '../components/TaskDrawer.vue'
 import { isSilent } from '../silence.js'
 
 // Cairn's own statuses, in workflow order, rather than renamed into somebody
@@ -41,6 +42,7 @@ const MOVE_LABEL = {
 }
 
 const router = useRouter()
+const route = useRoute()
 
 const rows = ref([])
 const agents = ref([])
@@ -204,14 +206,41 @@ async function moveSelection(to) {
   }
 }
 
+// The open task lives in the URL rather than in a boolean, so the back button
+// closes the drawer and a link to ?task=cairn-22 opens the board with it
+// already open. It is a query on the board's own route, not a push to
+// /t/{ref}: that URL stays a real page, because it is what a link in a commit
+// message points at.
+const openRef = computed(() => route.query.task ?? null)
+
 function open(row) {
-  router.push(`/t/${row.task.ref}`)
+  router.push({ query: { ...route.query, task: row.task.ref } })
+}
+
+function closeDrawer() {
+  const query = { ...route.query }
+  delete query.task
+  router.push({ query })
+}
+
+// The board behind the drawer is one row stale after a move. Reload it and
+// close, so the loop is click, read, decide, next -- which is the whole reason
+// the drawer exists.
+async function afterMove() {
+  await load()
+  closeDrawer()
+}
+
+async function afterDelete() {
+  selected.value.delete(openRef.value)
+  await load()
+  closeDrawer()
 }
 
 // Escape clears a selection. It is the one gesture people try without being
 // told, and without it the only way out is unpicking every card by hand.
 function onKey(event) {
-  if (event.key === 'Escape' && selected.value.size) clear()
+  if (event.key === 'Escape' && !openRef.value && selected.value.size) clear()
 }
 onMounted(() => {
   load()
@@ -323,6 +352,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </span>
       <button class="btn btn-ghost" @click="clear">Clear</button>
     </div>
+
+    <TaskDrawer
+      v-if="openRef"
+      :task-ref="openRef"
+      @close="closeDrawer"
+      @moved="afterMove"
+      @deleted="afterDelete"
+    />
   </div>
 </template>
 
