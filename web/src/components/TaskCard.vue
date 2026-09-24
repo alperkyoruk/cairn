@@ -8,8 +8,9 @@ const props = defineProps({
   row: { type: Object, required: true },
   agents: { type: Array, default: () => [] },
   selected: { type: Boolean, default: false },
+  dragging: { type: Boolean, default: false },
 })
-const emit = defineEmits(['open', 'toggle'])
+const emit = defineEmits(['open', 'toggle', 'grab'])
 
 // The same three-way borrow the table does, kept identical on purpose: a
 // blocked card shows the blocker because next_step is usually empty on one,
@@ -37,8 +38,9 @@ const silent = computed(() => isSilent(props.row.task))
 <template>
   <article
     class="card"
-    :class="{ selected, silent, waiting: row.task.status === 'review' }"
+    :class="{ selected, silent, dragging, waiting: row.task.status === 'review' }"
     @click="emit('open', $event)"
+    @pointerdown="emit('grab', $event)"
   >
     <!-- The checkbox is the only part that selects. Clicking the card opens the
          task, which is what a card has always done, and quietly changing that
@@ -82,6 +84,9 @@ const silent = computed(() => isSilent(props.row.task))
   transition: background var(--motion), box-shadow var(--motion);
 }
 .card:hover { background: var(--surface-high); }
+/* The card does not move with the pointer -- a ghost follows it instead, so
+   the column keeps its shape and you can still see where the card came from. */
+.card.dragging { opacity: 0.35; }
 .card.selected { box-shadow: 0 0 0 1px var(--accent); background: var(--accent-tint); }
 
 /* Same edge language as the table: accent means it is waiting on you, amber

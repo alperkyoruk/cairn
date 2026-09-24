@@ -213,7 +213,98 @@ async function moveSelection(to) {
 // message points at.
 const openRef = computed(() => route.query.task ?? null)
 
+// --- dragging ------------------------------------------------------------
+//
+// Pointer events rather than HTML5 drag-and-drop: that API does not fire on
+// touch and its drag image cannot be styled, and both of those matter here.
+//
+// Drag is an accelerator, never the only way. Every move it performs is also a
+// button in the drawer and on the task page, which is what keeps the board
+// usable by keyboard.
+const drag = ref(null)
+
+// Far enough that a click is not a one-pixel drag, close enough that a
+// deliberate pull is recognised immediately.
+const DRAG_THRESHOLD = 4
+
+function startDrag(row, event) {
+  if (event.button !== 0) return
+  // Dragging one card of a selection moves the selection. The alternative is a
+  // selection that silently does nothing, leaving the human to guess which
+  // gesture won.
+  const refs = selected.value.has(row.task.ref) ? [...selected.value] : [row.task.ref]
+  drag.value = {
+    refs, from: row.task.status, x: event.clientX, y: event.clientY,
+    title: row.task.title, over: null, active: false, busy: false,
+  }
+  window.addEventListener('pointermove', onDragMove)
+  window.addEventListener('pointerup', onDragEnd, { once: true })
+}
+
+function onDragMove(event) {
+  const d = drag.value
+  if (!d) return
+  if (!d.active) {
+    if (Math.hypot(event.clientX - d.x, event.clientY - d.y) < DRAG_THRESHOLD) return
+    d.active = true
+  }
+  d.x = event.clientX
+  d.y = event.clientY
+  const column = document.elementFromPoint(event.clientX, event.clientY)?.closest('.column')
+  const status = column?.dataset.status ?? null
+  d.over = status && canDropOn(status) ? status : null
+}
+
+// A column accepts the drag only if every card in it may make that move, and
+// only if none of them would owe a note for it. Same NEEDS_A_NOTE the bulk bar
+// uses -- a gesture cannot become a way around "you cannot move a task without
+// writing state", and the two surfaces must not drift into offering different
+// moves for the same cards.
+function canDropOn(status) {
+  const d = drag.value
+  if (!d || status === d.from) return false
+  const picked = visible.value.filter((r) => d.refs.includes(r.task.ref))
+  return picked.length > 0
+    && picked.every((r) => (r.can_move_to ?? []).includes(status))
+    && !picked.some((r) => NEEDS_A_NOTE(r.task.status, status))
+}
+
+async function onDragEnd() {
+  window.removeEventListener('pointermove', onDragMove)
+  const d = drag.value
+  if (!d) return
+  const target = d.active ? d.over : null
+  drag.value = null
+  if (!target) return
+
+  // Suppress the click that follows a drag, or letting go over a column would
+  // also open the drawer on the card just moved.
+  justDragged = true
+  setTimeout(() => { justDragged = false }, 0)
+
+  report.value = ''
+  busy.value = true
+  try {
+    const results = await api.bulkTransition(d.refs, target)
+    const refused = results.filter((r) => !r.moved)
+    // A refused drag has to be visible. Without this the card springs back and
+    // reads as a move that worked and then undid itself for no reason.
+    if (refused.length) {
+      report.value = refused.map((r) => `${r.ref}: ${r.error}`).join(' · ')
+    }
+    selected.value = new Set(refused.map((r) => r.ref))
+    await load()
+  } catch (err) {
+    failure.value = err.message
+  } finally {
+    busy.value = false
+  }
+}
+
+let justDragged = false
+
 function open(row) {
+  if (justDragged) return
   router.push({ query: { ...route.query, task: row.task.ref } })
 }
 
@@ -304,7 +395,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     </div>
 
     <div v-else class="columns">
-      <section v-for="col in columns" :key="col.status" class="column" :data-status="col.status">
+      <section
+        v-for="col in columns"
+        :key="col.status"
+        class="column"
+        :class="{
+          drop: drag?.active && drag.over === col.status,
+          dim: drag?.active && drag.over !== col.status && col.status !== drag.from,
+        }"
+        :data-status="col.status"
+      >
         <div class="col-head">
           <label class="all" :title="`Select every task in ${col.label}`">
             <input
@@ -325,8 +425,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :row="row"
             :agents="agents"
             :selected="selected.has(row.task.ref)"
+            :dragging="drag?.active && drag.refs.includes(row.task.ref)"
             @open="open(row)"
             @toggle="toggle(row, $event)"
+            @grab="startDrag(row, $event)"
           />
           <p v-if="!col.rows.length" class="none">{{ col.hint }}</p>
         </div>
@@ -351,6 +453,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         No move is available to all of these together.
       </span>
       <button class="btn btn-ghost" @click="clear">Clear</button>
+    </div>
+
+    <!-- The ghost, not the card. Moving the card itself would collapse the
+         column under the pointer and take away the thing you are aiming from. -->
+    <div
+      v-if="drag?.active"
+      class="ghost"
+      :class="{ ok: drag.over }"
+      :style="{ left: drag.x + 'px', top: drag.y + 'px' }"
+    >
+      <span class="ghost-title">{{ drag.title }}</span>
+      <span v-if="drag.refs.length > 1" class="ghost-n mono">+{{ drag.refs.length - 1 }}</span>
     </div>
 
     <TaskDrawer
@@ -436,6 +550,33 @@ h1 { font-size: var(--t-xl); font-weight: 500; letter-spacing: -0.01em; }
 .column[data-status='review'] .col-name { color: var(--accent); }
 .column[data-status='blocked'] .col-head { box-shadow: inset 0 2px 0 var(--blocked); }
 .column[data-status='blocked'] .col-name { color: var(--blocked); }
+
+/* The board says whether a drop will be taken before the finger lifts: the
+   column that will accept it lights, the ones that will not recede. Nothing
+   here decides anything -- it is the server's own can_move_to, read early. */
+.column.drop { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 1px var(--accent); }
+.column.drop .col-head { background: var(--accent-tint); }
+.column.dim { opacity: 0.45; }
+
+.ghost {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  transform: translate(12px, 10px);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  max-width: 260px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--surface-high);
+  box-shadow: var(--e-2);
+  font-size: var(--t-sm);
+  color: var(--text);
+}
+.ghost.ok { box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgb(0 0 0 / 0.5); }
+.ghost-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ghost-n { color: var(--text-dim); flex: none; }
 
 .stack {
   flex: 1;
