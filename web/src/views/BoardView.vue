@@ -53,6 +53,50 @@ const report = ref('')
 const selected = ref(new Set())
 const lastPicked = ref(null)
 
+// One project at a time, because a board across all of them stops being a
+// board the moment one project is big. A single project filling a hundred
+// cards buries every other project's four, and the columns stop answering
+// "what needs me" and start answering "what does the biggest project contain".
+//
+// Remembered, because you work on one project for a stretch rather than
+// switching every visit. It is safe to remember because it is never hidden
+// state: the chip for whatever is selected is always on screen, and All is
+// always one click away.
+const FILTER_KEY = 'cairn:board-project'
+
+function readFilter() {
+  try {
+    return localStorage.getItem(FILTER_KEY) || ''
+  } catch {
+    return '' // private window, or storage disabled. Show everything.
+  }
+}
+
+const project = ref(readFilter())
+
+function filterBy(slug) {
+  project.value = slug
+  // A selection is made against what you can see. Keeping it across a filter
+  // change would carry invisible tasks into the next bulk move.
+  clear()
+  try {
+    if (slug) localStorage.setItem(FILTER_KEY, slug)
+    else localStorage.removeItem(FILTER_KEY)
+  } catch {
+    /* nothing to do, and nothing worth telling the human about */
+  }
+}
+
+const visible = computed(() =>
+  project.value ? rows.value.filter((r) => r.task.project === project.value) : rows.value)
+
+// Counts are of the whole board, not the filtered view: the number beside a
+// project is how much it holds, which is the thing that makes you switch to it.
+const tabs = computed(() =>
+  projects.value
+    .map((p) => ({ slug: p.slug, name: p.name, n: rows.value.filter((r) => r.task.project === p.slug).length }))
+    .sort((a, b) => b.n - a.n))
+
 async function load() {
   try {
     const [board, agentList, projectList] = await Promise.all([
@@ -75,11 +119,11 @@ async function load() {
 const columns = computed(() =>
   COLUMNS.map((col) => ({
     ...col,
-    rows: rows.value.filter((r) => r.task.status === col.status),
+    rows: visible.value.filter((r) => r.task.status === col.status),
   })))
 
-const silentCount = computed(() => rows.value.filter((r) => isSilent(r.task)).length)
-const selectedRows = computed(() => rows.value.filter((r) => selected.value.has(r.task.ref)))
+const silentCount = computed(() => visible.value.filter((r) => isSilent(r.task)).length)
+const selectedRows = computed(() => visible.value.filter((r) => selected.value.has(r.task.ref)))
 
 // What may be done to every task in the selection, which is the intersection of
 // what may be done to each -- offering a move that is legal for eight of nine
@@ -184,8 +228,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <div>
         <h1>Board</h1>
         <p class="meta">
-          {{ rows.length }} open {{ rows.length === 1 ? 'task' : 'tasks' }} across
-          {{ projects.length }} {{ projects.length === 1 ? 'project' : 'projects' }}
+          {{ visible.length }} open {{ visible.length === 1 ? 'task' : 'tasks' }}
+          <template v-if="project">in {{ project }}</template>
+          <template v-else>
+            across {{ projects.length }} {{ projects.length === 1 ? 'project' : 'projects' }}
+          </template>
           <template v-if="silentCount">
             <span class="sep">·</span>
             <span class="quiet">{{ silentCount }} gone quiet</span>
@@ -193,6 +240,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </p>
       </div>
     </header>
+
+    <!-- Chips rather than a select: the counts are the reason to switch, and a
+         select hides them behind a click. -->
+    <div v-if="projects.length > 1" class="filter">
+      <button class="chip" :class="{ on: !project }" @click="filterBy('')">
+        All <span class="n mono">{{ rows.length }}</span>
+      </button>
+      <button
+        v-for="t in tabs"
+        :key="t.slug"
+        class="chip"
+        :class="{ on: project === t.slug }"
+        :title="t.name"
+        @click="filterBy(t.slug)"
+      >
+        {{ t.slug }} <span class="n mono">{{ t.n }}</span>
+      </button>
+    </div>
 
     <p v-if="failure" class="error">{{ failure }}</p>
     <p v-if="report" class="report">{{ report }}</p>
@@ -271,6 +336,27 @@ h1 { font-size: var(--t-xl); font-weight: 500; letter-spacing: -0.01em; }
 .quiet { color: var(--blocked); }
 
 .report { font-size: 12.5px; color: var(--text-muted); margin-bottom: var(--s-4); }
+
+.filter { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-bottom: var(--s-4); }
+.chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  background: var(--surface-raised);
+  border: 0;
+  box-shadow: var(--e-1);
+  border-radius: 999px;
+  padding: var(--s-1) var(--s-3);
+  cursor: pointer;
+  transition: background var(--motion), color var(--motion);
+}
+.chip:hover { background: var(--surface-high); color: var(--text); }
+.chip.on { background: var(--accent-tint); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.chip .n { color: var(--text-faint); font-size: var(--t-xs); }
+.chip.on .n { color: var(--accent); }
 
 /* Five columns that share the width and scroll independently. Equal fractions
    rather than content-sized, so the board does not reflow every time a task

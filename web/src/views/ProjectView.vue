@@ -16,6 +16,18 @@ const ready = ref(false)
 
 const adding = ref(false)
 const draft = ref({ title: '', body: '' })
+
+// Queueing it at the moment of filing, rather than filing it and queueing it
+// as a second decision a minute later. This is not a new permission: a task may
+// be created in backlog or in queue -- workflow.EntryStatuses says so -- and
+// the service already refuses an agent that tries the second one. Only the
+// human ever sees this box, and ticking it is them deciding, which is the
+// whole rule.
+//
+// On by default because a human typing a task into a project they are looking
+// at is usually filing work they want done. Untick it for something noticed in
+// passing that should wait.
+const queueNow = ref(true)
 const confirming = ref(false)
 const blocker = ref('')
 
@@ -42,7 +54,8 @@ async function load() {
 async function addTask() {
   failure.value = ''
   try {
-    await api.createTask(project.value.id, draft.value.title, draft.value.body, 'backlog')
+    await api.createTask(project.value.id, draft.value.title, draft.value.body,
+      queueNow.value ? 'queue' : 'backlog')
     draft.value = { title: '', body: '' }
     adding.value = false
     await load()
@@ -117,9 +130,19 @@ watch(() => props.slug, load)
         placeholder="Body — what the next reader needs to know before they start"
       />
       <div class="foot">
-        <button class="btn btn-primary" type="submit" :disabled="!draft.title">Create in backlog</button>
+        <button class="btn btn-primary" type="submit" :disabled="!draft.title">
+          {{ queueNow ? 'Create and queue' : 'Create in backlog' }}
+        </button>
         <button class="btn btn-secondary" type="button" @click="adding = false">Cancel</button>
-        <span class="note mono">new tasks always start in backlog</span>
+        <label class="queue-now">
+          <input v-model="queueNow" type="checkbox" />
+          queue it now
+        </label>
+        <span class="note mono">
+          {{ queueNow
+            ? 'an agent may pick it up straight away'
+            : 'it waits in backlog until you queue it' }}
+        </span>
       </div>
     </form>
 
@@ -182,6 +205,15 @@ h1 { font-size: var(--t-xl); font-weight: 500; letter-spacing: -0.01em; }
 .newtask textarea { min-height: 64px; }
 .foot { display: flex; align-items: center; gap: var(--s-3); }
 .note { margin-left: auto; font-size: var(--t-sm); color: var(--text-dim); }
+.queue-now {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.queue-now input { accent-color: var(--accent); cursor: pointer; margin: 0; }
 
 footer { margin-top: var(--s-12); padding-top: var(--s-6); }
 .blocker { font-size: var(--t-sm); color: var(--blocked); margin-top: var(--s-2); max-width: 60ch; }
