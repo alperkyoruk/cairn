@@ -203,12 +203,12 @@ td {
 
 .next-missing { font-size: var(--t-sm); color: var(--text-faint); }
 .next-empty { color: var(--text-faint); }
-.next-blocked { color: color-mix(in srgb, var(--blocked) 76%, #75798c); }
+.next-blocked { color: color-mix(in srgb, var(--blocked) 76%, var(--text-dim)); }
 /* Three treatments for one column, and the hue is the whole distinction: muted
    is the routine next step, amber is a blocker, accent is something recorded
    just now that nobody has read. Accent is already the "this involves you" hue
    on review rows, which is what an unaccompanied attempt usually is. */
-.next-attempt { color: color-mix(in srgb, var(--accent) 88%, #75798c); }
+.next-attempt { color: color-mix(in srgb, var(--accent) 88%, var(--text-dim)); }
 
 /* Silence reads as a blocker, because that is what it is: work that is not
    happening and will not resume on its own. It borrows the blocked hue rather

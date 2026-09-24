@@ -76,6 +76,14 @@ type boardRowDTO struct {
 	// recorded something here" from "the note was rewritten" -- the row rises
 	// either way, and until now it looked identical.
 	Attempt *attemptDTO `json:"attempt"`
+
+	// CanMoveTo was already computed for every row and then discarded here,
+	// which the board could afford while it only ever moved one task at a time
+	// -- the task page asks for its own moves when you open it. Selecting
+	// twenty needs the moves of all twenty at once, and the honest way to get
+	// them is the same way a single task does: from the server, which owns the
+	// state machine.
+	CanMoveTo []string `json:"can_move_to"`
 }
 
 type attemptDTO struct {
@@ -197,6 +205,30 @@ func (in *stateInput) toService() *service.StateInput {
 	return &service.StateInput{
 		WhereILeftOff: in.WhereILeftOff, NextStep: in.NextStep, BlockedOn: in.BlockedOn,
 	}
+}
+
+// bulkTransitionBody moves a selection in one request.
+//
+// One decision expressed once, rather than once per task: queueing nineteen
+// filed tasks was nineteen clicks for a judgement made in one go. The gate is
+// unchanged -- every ref still goes through Service.Transition, so the
+// workflow rules, the required note and the conditional update all apply
+// exactly as they do for a single move.
+type bulkTransitionBody struct {
+	Refs    []string      `json:"refs"`
+	To      string        `json:"to"`
+	State   *stateInput   `json:"state"`
+	Worklog *worklogInput `json:"worklog"`
+}
+
+// bulkResultDTO is one task's outcome. Partial success is the normal case, not
+// an exception: a conditional UPDATE can lose a race, so a selection of twenty
+// can come back nineteen moved and one stale. An HTTP status cannot say that,
+// so the body does, per task.
+type bulkResultDTO struct {
+	Ref   string `json:"ref"`
+	Moved bool   `json:"moved"`
+	Error string `json:"error,omitempty"`
 }
 
 type worklogInput struct {

@@ -51,9 +51,9 @@ const isAgent = computed(() => props.agents.some((a) => a.name === props.entry.a
   height: 5px;
   border-radius: 50%;
   margin: 6px 0 0 3px;
-  background: #595d6c;
+  background: var(--text-faint);
 }
-.marker.moved { background: #968ae0; }
+.marker.moved { background: var(--accent); }
 .marker.blocked {
   width: 7px;
   height: 7px;
@@ -84,9 +84,9 @@ const isAgent = computed(() => props.agents.some((a) => a.name === props.entry.a
 
 .to[data-status='backlog'] { color: #9397ab; }
 .to[data-status='queue']   { color: #cfd3e5; }
-.to[data-status='active']  { color: #968ae0; }
+.to[data-status='active']  { color: var(--accent); }
 .to[data-status='review']  { color: var(--accent); }
-.to[data-status='done']    { color: #75798c; }
+.to[data-status='done']    { color: var(--text-dim); }
 .to[data-status='blocked'] { color: var(--blocked); }
 
 .at {

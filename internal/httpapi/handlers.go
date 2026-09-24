@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/alperkyoruk/cairn/internal/model"
@@ -127,7 +128,10 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, actor servi
 	}
 	out := make([]boardRowDTO, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, boardRowDTO{Task: toTask(row.Task), State: toState(row.State), Attempt: toAttempt(row.Attempt)})
+		out = append(out, boardRowDTO{
+			Task: toTask(row.Task), State: toState(row.State),
+			Attempt: toAttempt(row.Attempt), CanMoveTo: statuses(row.CanMoveTo),
+		})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -226,7 +230,10 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request, actor s
 	// note a task at a time.
 	out := make([]boardRowDTO, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, boardRowDTO{Task: toTask(row.Task), State: toState(row.State), Attempt: toAttempt(row.Attempt)})
+		out = append(out, boardRowDTO{
+			Task: toTask(row.Task), State: toState(row.State),
+			Attempt: toAttempt(row.Attempt), CanMoveTo: statuses(row.CanMoveTo),
+		})
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -326,6 +333,50 @@ func (s *Server) handleTransition(w http.ResponseWriter, r *http.Request, actor 
 		return
 	}
 	s.respondWithTask(w, r, actor, id)
+}
+
+// maxBulkRefs caps one request. High enough that a real selection never hits
+// it -- the largest backlog this has seen was nineteen -- and low enough that
+// a single request cannot hold the one write connection for long.
+const maxBulkRefs = 200
+
+func (s *Server) handleBulkTransition(w http.ResponseWriter, r *http.Request, actor service.Actor) {
+	var in bulkTransitionBody
+	if err := decode(r, &in); err != nil {
+		writeError(w, err)
+		return
+	}
+	if len(in.Refs) == 0 {
+		writeError(w, &service.Error{Kind: service.KindInvalid, Msg: "no tasks selected"})
+		return
+	}
+	if len(in.Refs) > maxBulkRefs {
+		writeError(w, &service.Error{Kind: service.KindInvalid, Msg: fmt.Sprintf(
+			"%d tasks selected; %d at a time is the most this will move", len(in.Refs), maxBulkRefs)})
+		return
+	}
+
+	// Each ref is moved on its own terms. One task failing does not cancel the
+	// rest: the human decided about the whole selection, and refusing all
+	// twenty because one lost a race would throw away nineteen good decisions.
+	out := make([]bulkResultDTO, 0, len(in.Refs))
+	for _, ref := range in.Refs {
+		res := bulkResultDTO{Ref: ref}
+		detail, err := s.svc.LookupTask(r.Context(), actor, ref, service.TaskQuery{})
+		if err == nil {
+			_, err = s.svc.Transition(r.Context(), actor, detail.Task.ID, service.TransitionInput{
+				To:    workflow.Status(in.To),
+				State: in.State.toService(), Worklog: in.Worklog.toService(),
+			})
+		}
+		if err != nil {
+			res.Error = err.Error()
+		} else {
+			res.Moved = true
+		}
+		out = append(out, res)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleWriteState(w http.ResponseWriter, r *http.Request, actor service.Actor) {

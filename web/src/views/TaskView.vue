@@ -324,7 +324,7 @@ watch(() => props.taskRef, load)
 </template>
 
 <style scoped>
-.task { display: grid; grid-template-columns: minmax(0, 1fr) 310px; }
+.task { display: grid; grid-template-columns: minmax(0, 1fr) 310px; max-width: 1180px; }
 .pad { padding: var(--s-8); }
 
 .content { padding: var(--s-8) var(--s-8) 40px; min-width: 0; }

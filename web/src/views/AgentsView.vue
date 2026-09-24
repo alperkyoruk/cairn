@@ -202,7 +202,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.agents { padding: var(--s-6); }
+.agents { max-width: 1180px; padding: var(--s-6); }
 h1 { font-size: var(--t-xl); font-weight: 500; letter-spacing: -0.01em; margin-bottom: var(--s-8); }
 
 .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--s-12); }

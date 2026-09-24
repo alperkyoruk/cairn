@@ -54,6 +54,10 @@ export const api = {
   deleteTask: (ref) => request('DELETE', `/tasks/${ref}`),
   transition: (ref, to, state, worklog) =>
     request('POST', `/tasks/${ref}/transition`, { to, state: state ?? null, worklog: worklog ?? null }),
+  // Answers per task rather than all-or-nothing: partial success is the normal
+  // case, and nineteen good moves should not be thrown away because one lost a
+  // race. Returns [{ref, moved, error}].
+  bulkTransition: (refs, to) => request('POST', '/tasks/transition', { refs, to }),
   writeState: (ref, state) => request('PUT', `/tasks/${ref}/state`, state),
   appendWorklog: (ref, worklog) => request('POST', `/tasks/${ref}/worklog`, worklog),
 

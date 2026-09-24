@@ -3,13 +3,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api.js'
 import RelativeTime from '../components/RelativeTime.vue'
-import TaskTable from '../components/TaskTable.vue'
-import ChevronDown from '../components/icons/ChevronDown.vue'
-import { isSilent } from '../silence.js'
 
-// The root screen. Projects first, because a task list across every project is
-// only legible once you already know what the projects are -- and because a new
-// install has projects before it has tasks.
+// No longer the root -- the board is. What is left here is the thing a board of
+// cards cannot show: how much each project holds, how much of it is open, and
+// which ones moved while you were away.
+//
+// The "waiting on you" band that used to sit above this list is gone with the
+// move. Review and blocked are columns on the board now, which answers the same
+// question better, and two screens answering it differently is the duplication
+// this codebase already decided against once.
 const router = useRouter()
 
 const projects = ref([])
@@ -23,68 +25,12 @@ const draft = ref({ name: '', slug: '' })
 const slugTouched = ref(false)
 const createError = ref('')
 
-// Counts come from the board rather than a second endpoint: it already returns
-// every task with its project, and this is a single-user tracker, not a
-// dashboard over a million rows.
-const summary = computed(() =>
-  projects.value.map((p) => {
-    const mine = rows.value.filter((r) => r.task.project === p.slug)
-    const count = (status) => mine.filter((r) => r.task.status === status).length
-    const touched = mine.reduce(
-      (latest, r) => (!latest || r.task.updated_at > latest ? r.task.updated_at : latest),
-      '',
-    )
-    return {
-      ...p,
-      changed: mine.filter((r) => changed(r.task.updated_at)).length,
-      total: mine.length,
-      open: mine.filter((r) => r.task.status !== 'done').length,
-      review: count('review'),
-      blocked: count('blocked'),
-      active: count('active'),
-      touched,
-    }
-  }))
-
-// The rows that need a decision, rather than a number that links to them. The
-// board is already loaded for the counts above, so showing the rows themselves
-// costs no request -- it was being reduced to a count and thrown away.
-//
-// Review is waiting on a decision and blocked is waiting on an unblocking;
-// both are the human's, and nothing else on the board is.
-// Review is waiting on a decision, blocked on an unblocking, and a silent task
-// on somebody noticing that nothing is happening. All three are the human's,
-// and nothing else on the board is: the rest is either an agent's turn or
-// nobody's.
-const NEEDS_A_HUMAN = ['review', 'blocked']
-const needsMe = (row) => NEEDS_A_HUMAN.includes(row.task.status) || isSilent(row.task)
-
-// Oldest first, which is the opposite of every other list in the app. Recency
-// is the right order for "what is happening" and exactly the wrong one for
-// "what have I not dealt with": it puts the thing you have ignored longest at
-// the bottom, which is where you stop reading.
-const needsYou = computed(() =>
-  rows.value
-    .filter(needsMe)
-    .slice()
-    .sort((a, b) => a.task.updated_at.localeCompare(b.task.updated_at)))
-
-// The band is meant to be read in five seconds and then looked past. Nineteen
-// rows pushed the projects list to 849px on a 900px viewport -- present, and
-// below the fold on any laptop -- so what the band gained, the screen lost.
-//
-// Capped rather than scrolled, and expanded in place rather than linked away:
-// there is nowhere to link to that is ordered the same way, and /tasks is
-// deliberately still a recency list. Same collapse the worklog uses.
 // "Since you last looked" is a fact about this visitor, so it lives in this
-// browser. The filed design put it on the actor row in SQLite, which would have
-// made GET /api/board a write -- and worse, stamping the read on every load
-// means the second load erases the marks, so a reload three seconds later wipes
-// the thing you opened the page to see.
-//
-// Kept here, the read path stays a read, there is no column, and the marks last
-// the whole visit: lastSeen only advances when the human leaves the page, which
-// is the moment they have finished looking.
+// browser rather than on the actor row: no schema column, no write on a read
+// path, and GET /api/board stays a read. It advances when the human leaves the
+// page rather than when they load it -- stamping on arrival means the second
+// load erases the marks, and a reload three seconds later wipes the thing you
+// opened the page to see.
 const SEEN_KEY = 'cairn:projects-seen'
 
 function readSeen() {
@@ -118,11 +64,28 @@ function changed(at) {
 
 const changedCount = computed(() => rows.value.filter((r) => changed(r.task.updated_at)).length)
 
-const BAND_ROWS = 8
-const expanded = ref(false)
-const shown = computed(() =>
-  expanded.value ? needsYou.value : needsYou.value.slice(0, BAND_ROWS))
-const hidden = computed(() => needsYou.value.length - shown.value.length)
+// Counts come from the board rather than a second endpoint: it already returns
+// every task with its project, and this is a single-user tracker, not a
+// dashboard over a million rows.
+const summary = computed(() =>
+  projects.value.map((p) => {
+    const mine = rows.value.filter((r) => r.task.project === p.slug)
+    const count = (status) => mine.filter((r) => r.task.status === status).length
+    const touched = mine.reduce(
+      (latest, r) => (!latest || r.task.updated_at > latest ? r.task.updated_at : latest),
+      '',
+    )
+    return {
+      ...p,
+      changed: mine.filter((r) => changed(r.task.updated_at)).length,
+      total: mine.length,
+      open: mine.filter((r) => r.task.status !== 'done').length,
+      review: count('review'),
+      blocked: count('blocked'),
+      active: count('active'),
+      touched,
+    }
+  }))
 
 async function load() {
   try {
@@ -237,30 +200,6 @@ onMounted(load)
       </div>
     </form>
 
-    <!-- The five-second question, answered without a click. This is the screen
-         the human lands on many times a day, and until now it answered "what
-         needs me?" with a number that had to be navigated to become an answer. -->
-    <section v-if="rows.length" class="needs">
-      <div class="band">
-        <h2>Waiting on you</h2>
-        <span class="legend mono">
-          {{ needsYou.length ? 'longest waiting first' : 'nothing to decide' }}
-        </span>
-      </div>
-      <TaskTable v-if="needsYou.length" :rows="shown" :agents="agents" />
-      <button v-if="hidden" class="reveal mono" @click="expanded = true">
-        <ChevronDown />
-        {{ hidden }} more waiting
-      </button>
-      <!-- "Nothing" is an answer, not an absence, and worth saying out loud.
-           Its own condition, not a v-else: the reveal button sits between this
-           and the table, so an else would bind to the button instead. -->
-      <p v-if="!needsYou.length" class="clear">
-        Nothing is in review or blocked, and nothing has gone quiet. Everything
-        open is with the agents.
-      </p>
-    </section>
-
     <ul v-if="summary.length" class="list">
       <li
         v-for="p in summary"
@@ -308,7 +247,10 @@ onMounted(load)
 </template>
 
 <style scoped>
-.projects { padding: var(--s-6) var(--s-6) var(--s-8); }
+/* Its own measure now that <main> has none: the board wanted the full width
+   and this page does not. A project row stretched across a 27-inch monitor
+   puts its name and its counts a foot apart. */
+.projects { max-width: 1180px; padding: var(--s-6) var(--s-6) var(--s-8); }
 
 header {
   display: flex;
@@ -319,30 +261,6 @@ header {
 }
 h1 { font-size: var(--t-xl); font-weight: 500; letter-spacing: -0.01em; }
 
-.needs { margin-bottom: var(--s-8); }
-.band {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-4);
-  margin-bottom: var(--s-3);
-}
-.band h2 { font-size: var(--t-lg); font-weight: 500; }
-.legend { font-size: 11.5px; color: var(--text-faint); }
-.clear { font-size: 13px; color: var(--text-dim); }
-.reveal {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  font: inherit;
-  font-size: var(--t-sm);
-  color: var(--text-dim);
-  background: none;
-  border: 0;
-  padding: var(--s-3) var(--s-2) 0;
-  cursor: pointer;
-}
-.reveal:hover { color: var(--text); }
 .changed { color: var(--text); }
 .quiet { color: var(--text-faint); }
 .meta { font-size: 12.5px; color: var(--text-dim); margin-top: var(--s-2); }
@@ -396,7 +314,7 @@ h1 { font-size: var(--t-xl); font-weight: 500; letter-spacing: -0.01em; }
 .blocked { color: var(--blocked); }
 .blocked .mark { border-radius: 0; background: var(--blocked); transform: rotate(45deg); }
 .active { color: var(--text-muted); }
-.active .mark { background: #968ae0; }
+.active .mark { background: var(--accent); }
 /* Deliberately the quietest signal on the row: "moved" is context for the ones
    beside it, not a call to act. A hollow mark, because nothing here is a state
    of the project -- it is a fact about this visit and it is gone next time. */

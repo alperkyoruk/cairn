@@ -84,6 +84,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/tasks/{ref}", s.authed(s.handleGetTask))
 	s.mux.HandleFunc("PATCH /api/tasks/{ref}", s.authed(s.handleUpdateTask))
 	s.mux.HandleFunc("DELETE /api/tasks/{ref}", s.authed(s.handleDeleteTask))
+	// Registered before the {ref} route so "transition" is not read as a ref.
+	s.mux.HandleFunc("POST /api/tasks/transition", s.authed(s.handleBulkTransition))
 	s.mux.HandleFunc("POST /api/tasks/{ref}/transition", s.authed(s.handleTransition))
 	s.mux.HandleFunc("PUT /api/tasks/{ref}/state", s.authed(s.handleWriteState))
 	s.mux.HandleFunc("POST /api/tasks/{ref}/worklog", s.authed(s.handleAppendWorklog))

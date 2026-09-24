@@ -151,7 +151,7 @@ watch(() => props.slug, load)
 </template>
 
 <style scoped>
-.project, .pad { padding: var(--s-6) var(--s-6) var(--s-8); }
+.project, .pad { max-width: 1180px; padding: var(--s-6) var(--s-6) var(--s-8); }
 
 .crumbs { display: flex; gap: var(--s-2); font-size: var(--t-sm); margin-bottom: var(--s-4); }
 .crumbs a { color: var(--text-dim); }

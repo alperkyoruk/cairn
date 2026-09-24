@@ -72,7 +72,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.tasks { padding: var(--s-6) var(--s-6) var(--s-8); }
+.tasks { max-width: 1180px; padding: var(--s-6) var(--s-6) var(--s-8); }
 
 header {
   display: flex;

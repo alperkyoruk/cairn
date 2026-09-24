@@ -39,13 +39,13 @@ defineProps({
 
 .label { transition: color var(--motion); }
 
-[data-status='backlog'] .glyph { box-shadow: inset 0 0 0 1.5px #595d6c; }
+[data-status='backlog'] .glyph { box-shadow: inset 0 0 0 1.5px var(--text-faint); }
 [data-status='backlog'] .label { color: #9397ab; }
 
 [data-status='queue'] .glyph { box-shadow: inset 0 0 0 1.5px #9397ab; }
 [data-status='queue'] .label { color: #cfd3e5; }
 
-[data-status='active'] .glyph { background: #968ae0; }
+[data-status='active'] .glyph { background: var(--accent); }
 [data-status='active'] .label { color: #e4e7f5; }
 
 /* The only glow anywhere in the app. A task in review is always waiting on the
@@ -56,8 +56,8 @@ defineProps({
 }
 [data-status='review'] .label { color: var(--accent); }
 
-[data-status='done'] { color: #75798c; }
-[data-status='done'] .label { color: #75798c; }
+[data-status='done'] { color: var(--text-dim); }
+[data-status='done'] .label { color: var(--text-dim); }
 
 /* blocked is not a stage in the pipeline, so it does not get a circle. */
 [data-status='blocked'] .glyph {

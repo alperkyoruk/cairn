@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { session, loadSession } from './session.js'
-import NavBar from './components/NavBar.vue'
+import Sidebar from './components/Sidebar.vue'
 import SetupView from './views/SetupView.vue'
 import LoginView from './views/LoginView.vue'
 
@@ -27,21 +27,27 @@ onMounted(async () => {
   <SetupView v-else-if="session.needsSetup" />
   <LoginView v-else-if="!session.actor" />
 
-  <template v-else>
-    <NavBar :actor="session.actor" />
+  <div v-else class="shell">
+    <Sidebar :actor="session.actor" />
     <main><RouterView /></main>
-  </template>
+  </div>
 </template>
 
 <style scoped>
 .boot { margin: var(--s-12); }
 
-/* The nav paints its rule edge-to-edge, but its contents are constrained to
-   the same measure as the page below it -- otherwise the username drifts to
-   the far corner of a wide monitor while the table it belongs to stays at
-   1280px, and the two stop looking like one screen. */
-main {
-  max-width: 1280px;
-  margin: 0 auto;
+/* A rail and the rest. The board wants every pixel of width it can get -- five
+   columns divided by a 1280px measure is five narrow slivers on a monitor that
+   had the room -- so the cap is gone and the rail holds the left edge instead.
+   Pages that are still text rather than columns set their own measure. */
+.shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  min-height: 100dvh;
+}
+main { min-width: 0; }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
